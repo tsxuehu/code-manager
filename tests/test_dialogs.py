@@ -36,6 +36,20 @@ class DialogTests(unittest.TestCase):
 
         self.assertEqual(dialog.application().group_english_name, "endpoint")
 
+    def test_application_dialog_has_enough_width_for_repository_url(self) -> None:
+        dialog = ApplicationDialog(
+            Application(
+                name="axo-worker-bridge",
+                repository_url="git@example.com:aha/server/axo-worker-bridge.git",
+                group_english_name="server",
+                local_dir_name="axo-worker-bridge",
+            ),
+            group_options=["server"],
+        )
+
+        self.assertGreaterEqual(dialog.minimumWidth(), 640)
+        self.assertGreaterEqual(dialog.repository_url_input.minimumWidth(), 560)
+
 
 if __name__ == "__main__":
     unittest.main()

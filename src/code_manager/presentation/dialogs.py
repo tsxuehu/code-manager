@@ -87,6 +87,16 @@ class ApplicationDialog(QDialog):
             self.group_input.setCurrentText(application.group_english_name)
         self.local_dir_input = QLineEdit(application.local_dir_name if application else "")
 
+        field_min_width = 560
+        self.setMinimumWidth(640)
+        for widget in (
+            self.name_input,
+            self.repository_url_input,
+            self.group_input,
+            self.local_dir_input,
+        ):
+            widget.setMinimumWidth(field_min_width)
+
         form = QFormLayout()
         form.addRow("应用名", self.name_input)
         form.addRow("仓库地址", self.repository_url_input)

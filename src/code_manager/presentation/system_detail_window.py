@@ -214,10 +214,14 @@ class SystemDetailWindow(QMainWindow):
         operation: Callable[[Application], object],
     ) -> None:
         self.status_label.setText(f"{name} 执行中...")
-        worker = BatchWorker(system.applications, operation)
+        worker = BatchWorker(system.applications, operation, signal_parent=self)
         worker.signals.item_finished.connect(self._handle_batch_result)
-        worker.signals.finished.connect(lambda: self.status_label.setText(f"{name} 已完成"))
+        worker.signals.finished.connect(lambda w=worker: self._finish_batch(name, w))
         self.thread_pool.start(worker)
+
+    def _finish_batch(self, name: str, worker: BatchWorker) -> None:
+        self.status_label.setText(f"{name} 已完成")
+        worker.signals.deleteLater()
 
     def _handle_batch_result(self, result: object) -> None:
         if isinstance(result, RepositoryStatus):
@@ -275,10 +279,17 @@ class SystemDetailWindow(QMainWindow):
         worker = BatchWorker(
             [application],
             lambda current_application: self.git_service.status(current_application, system.code_root),
+            signal_parent=self,
         )
         worker.signals.item_finished.connect(self._handle_batch_result)
-        worker.signals.finished.connect(lambda: self.status_label.setText(f"刷新完成: {application.name}"))
+        worker.signals.finished.connect(
+            lambda w=worker: self._finish_single_refresh(application.name, w)
+        )
         self.thread_pool.start(worker)
+
+    def _finish_single_refresh(self, application_name: str, worker: BatchWorker) -> None:
+        self.status_label.setText(f"刷新完成: {application_name}")
+        worker.signals.deleteLater()
 
     def _handle_open_local_path(self, application: Application, local_path: Path) -> None:
         self.open_local_path(local_path)

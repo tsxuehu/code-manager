@@ -6,7 +6,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEventLoop, Qt, QTimer
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QHeaderView, QPushButton
 
 from code_manager.application.config_service import CodeManagerService
@@ -240,6 +240,46 @@ class SystemDetailWindowTests(unittest.TestCase):
             buttons[0].click()
 
             self.assertEqual(refreshed_applications, [applications[1]])
+
+    def test_refresh_statuses_updates_status_label_when_batch_finishes(self) -> None:
+        class FastGitService(GitService):
+            def status(self, application: Application, code_root: Path) -> RepositoryStatus:
+                return RepositoryStatus(
+                    application=application,
+                    local_path=application.resolve_local_path(code_root),
+                    exists=False,
+                    branch="-",
+                    has_local_changes=False,
+                    has_remote_updates=False,
+                    message="状态已刷新",
+                )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            applications = tuple(
+                Application(
+                    name=f"app-{index}",
+                    repository_url=f"https://git.example.com/platform/app-{index}.git",
+                    group_english_name="platform",
+                    local_dir_name=f"app-{index}",
+                )
+                for index in range(3)
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=applications,
+                )
+            )
+            window = SystemDetailWindow(service, FastGitService(), "aha")
+            window.refresh_statuses()
+
+            loop = QEventLoop()
+            QTimer.singleShot(500, loop.quit)
+            loop.exec()
+
+            self.assertEqual(window.status_label.text(), "状态刷新 已完成")
 
     def test_clone_and_update_respect_submodule_checkbox(self) -> None:
         class RecordingGitService(GitService):

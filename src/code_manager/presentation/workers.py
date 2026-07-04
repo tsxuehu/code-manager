@@ -11,11 +11,17 @@ class WorkerSignals(QObject):
 
 
 class BatchWorker(QRunnable):
-    def __init__(self, items: Iterable[object], operation: Callable[[object], object]) -> None:
+    def __init__(
+        self,
+        items: Iterable[object],
+        operation: Callable[[object], object],
+        signal_parent: QObject | None = None,
+    ) -> None:
         super().__init__()
         self.items = list(items)
         self.operation = operation
-        self.signals = WorkerSignals()
+        self.signals = WorkerSignals(signal_parent)
+        self.setAutoDelete(False)
 
     @Slot()
     def run(self) -> None:
