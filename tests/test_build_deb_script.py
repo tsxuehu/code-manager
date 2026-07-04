@@ -50,15 +50,15 @@ class BuildDebScriptTests(unittest.TestCase):
                 return_value=bundle_dir,
             ) as build_bundle, patch.object(
                 build_deb,
-                "clean_directory",
-            ) as clean_directory, patch.object(
+                "clean_build_artifacts",
+            ) as clean_build_artifacts, patch.object(
                 build_deb.subprocess,
                 "run",
             ) as run:
                 result = build_deb.main([])
 
             self.assertEqual(result, 0)
-            self.assertEqual(clean_directory.call_count, 2)
+            clean_build_artifacts.assert_called_once()
             build_bundle.assert_called_once()
             command = run.call_args.args[0]
             self.assertEqual(command[0], "dpkg-deb")
@@ -104,7 +104,10 @@ class BuildDebScriptTests(unittest.TestCase):
             self.assertTrue(icon.is_file())
             self.assertTrue(postinst.is_file())
             self.assertTrue(control.is_file())
-            self.assertIn("Architecture: amd64", control.read_text(encoding="utf-8"))
+            control_text = control.read_text(encoding="utf-8")
+            self.assertIn("Architecture: amd64", control_text)
+            self.assertIn("Manage Git repositories", control_text)
+            self.assertNotIn("代码管理器", control_text)
 
 
 if __name__ == "__main__":

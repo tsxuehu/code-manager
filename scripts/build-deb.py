@@ -13,7 +13,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from build_utils import clean_directory
+from build_utils import clean_build_artifacts
 
 
 def read_project_version(project_root: Path) -> str:
@@ -190,7 +190,7 @@ def write_control_file(
             Depends: git, libxcb-cursor0, libxkbcommon-x11-0
             Maintainer: code-manager <code-manager@localhost>
             Description: Desktop application for managing application source repositories.
-             代码管理器是一个桌面应用，用于统一管理一个系统下所有应用的代码仓库。
+             Manage Git repositories across multiple systems, groups, and applications.
             Installed-Size: {installed_size_kb}
             """
         ),
@@ -298,8 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = project_root / args.output_dir
     output_path = output_dir / f"code-manager_{version}_{architecture}.deb"
 
-    clean_directory(dist_dir)
-    clean_directory(output_dir)
+    clean_build_artifacts(project_root)
 
     try:
         bundle_dir = build_pyinstaller_bundle(

@@ -11,7 +11,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from build_utils import clean_directory
+from build_utils import clean_build_artifacts
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     dist_dir = project_root / args.dist_dir
     build_dir = project_root / "build" / "pyinstaller"
 
-    clean_directory(dist_dir)
+    clean_build_artifacts(project_root)
 
     command = [
         uv,
