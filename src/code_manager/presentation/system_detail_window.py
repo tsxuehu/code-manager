@@ -52,7 +52,7 @@ class SystemDetailWindow(QMainWindow):
         self.group_config_window: GroupConfigWindow | None = None
 
         self.include_submodules_checkbox = QCheckBox("操作应用于 sub module")
-        self.repository_table = QTableWidget(0, 7)
+        self.repository_table = QTableWidget(0, 6)
         self.status_label = QLabel("就绪")
 
         self.setWindowTitle(f"系统详情 - {system_name}")
@@ -83,7 +83,6 @@ class SystemDetailWindow(QMainWindow):
             [
                 "分组",
                 "应用名",
-                "本地路径",
                 "分支",
                 "本地改动",
                 "远端新代码",
@@ -94,15 +93,16 @@ class SystemDetailWindow(QMainWindow):
         column_widths = {
             0: 120,
             1: 260,
-            3: 90,
-            4: 100,
-            5: 115,
-            6: 220,
+            2: 90,
+            3: 100,
+            4: 115,
+            5: 275,
         }
         for column, width in column_widths.items():
-            header.setSectionResizeMode(column, QHeaderView.Fixed)
+            header.setSectionResizeMode(column, QHeaderView.Interactive)
             self.repository_table.setColumnWidth(column, width)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setStretchLastSection(True)
+        self.repository_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.repository_table.setSelectionMode(QTableWidget.NoSelection)
         self.repository_table.setFocusPolicy(Qt.NoFocus)
         self.repository_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -123,7 +123,6 @@ class SystemDetailWindow(QMainWindow):
             values = [
                 application.group_english_name,
                 application.name,
-                str(local_path),
                 status.branch if status else "-",
                 self._local_changes_text(status),
                 self._yes_no(status.has_remote_updates) if status else "-",
@@ -132,7 +131,7 @@ class SystemDetailWindow(QMainWindow):
                 item = QTableWidgetItem(value)
                 item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
                 self.repository_table.setItem(row, column, item)
-            self.repository_table.setCellWidget(row, 6, self._operation_widget(application, local_path))
+            self.repository_table.setCellWidget(row, 5, self._operation_widget(application, local_path))
 
     def open_repository_config(self) -> None:
         if self.repository_config_window is not None:
@@ -247,6 +246,11 @@ class SystemDetailWindow(QMainWindow):
         widget = QWidget()
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(4, 2, 4, 2)
+        refresh_button = QPushButton("刷新")
+        refresh_button.setFixedWidth(56)
+        refresh_button.clicked.connect(
+            lambda _checked=False: self._refresh_application_status(application)
+        )
         open_directory_button = QPushButton("打本目录")
         open_directory_button.setFixedWidth(86)
         open_directory_button.clicked.connect(
@@ -257,10 +261,22 @@ class SystemDetailWindow(QMainWindow):
         terminal_button.clicked.connect(
             lambda _checked=False: self._handle_open_terminal_path(application, local_path)
         )
+        layout.addWidget(refresh_button)
         layout.addWidget(open_directory_button)
         layout.addWidget(terminal_button)
         layout.addStretch(1)
         return widget
+
+    def _refresh_application_status(self, application: Application) -> None:
+        system = self._system()
+        self.status_label.setText(f"刷新状态: {application.name}")
+        worker = BatchWorker(
+            [application],
+            lambda current_application: self.git_service.status(current_application, system.code_root),
+        )
+        worker.signals.item_finished.connect(self._handle_batch_result)
+        worker.signals.finished.connect(lambda: self.status_label.setText(f"刷新完成: {application.name}"))
+        self.thread_pool.start(worker)
 
     def _handle_open_local_path(self, application: Application, local_path: Path) -> None:
         self.open_local_path(local_path)

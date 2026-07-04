@@ -28,7 +28,7 @@ from code_manager.presentation.system_detail_window import SystemDetailWindow
 
 SYSTEM_NAME_COLUMN_WIDTH = 170
 SYSTEM_TABLE_ROW_HEIGHT = 36
-SYSTEM_OPERATION_COLUMN_WIDTH = 260
+SYSTEM_OPERATION_COLUMN_WIDTH = 240
 
 
 class MainWindow(QMainWindow):
@@ -69,12 +69,13 @@ class MainWindow(QMainWindow):
         layout.addLayout(button_row)
 
         self.system_table.setHorizontalHeaderLabels(["系统名称", "本地代码路径", "操作"])
-        self.system_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
-        self.system_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.system_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.system_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.system_table.horizontalHeader().setStretchLastSection(True)
+        self.system_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.system_table.verticalHeader().setDefaultSectionSize(SYSTEM_TABLE_ROW_HEIGHT)
         self.system_table.verticalHeader().setMinimumSectionSize(SYSTEM_TABLE_ROW_HEIGHT)
         self.system_table.setColumnWidth(0, SYSTEM_NAME_COLUMN_WIDTH)
+        self.system_table.setColumnWidth(1, 240)
         self.system_table.setColumnWidth(2, SYSTEM_OPERATION_COLUMN_WIDTH)
         self.system_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.system_table.setSelectionMode(QAbstractItemView.NoSelection)

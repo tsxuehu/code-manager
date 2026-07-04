@@ -23,7 +23,7 @@ from code_manager.domain.models import Application, Group, SystemProfile
 from code_manager.presentation.dialogs import GroupDialog
 
 GROUP_TABLE_ROW_HEIGHT = 36
-GROUP_OPERATION_COLUMN_WIDTH = 260
+GROUP_OPERATION_COLUMN_WIDTH = 220
 
 
 class GroupConfigWindow(QMainWindow):
@@ -59,11 +59,13 @@ class GroupConfigWindow(QMainWindow):
         layout.addLayout(button_row)
 
         self.group_table.setHorizontalHeaderLabels(["中文名", "英文名", "操作"])
-        self.group_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.group_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.group_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.group_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.group_table.horizontalHeader().setStretchLastSection(True)
+        self.group_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.group_table.verticalHeader().setDefaultSectionSize(GROUP_TABLE_ROW_HEIGHT)
         self.group_table.verticalHeader().setMinimumSectionSize(GROUP_TABLE_ROW_HEIGHT)
+        self.group_table.setColumnWidth(0, 180)
+        self.group_table.setColumnWidth(1, 180)
         self.group_table.setColumnWidth(2, GROUP_OPERATION_COLUMN_WIDTH)
         self.group_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.group_table.setSelectionMode(QTableWidget.NoSelection)

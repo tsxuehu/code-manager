@@ -67,7 +67,7 @@ class SystemDetailWindowTests(unittest.TestCase):
 
             window.refresh_table()
 
-            self.assertEqual(window.repository_table.item(0, 4).text(), "未clone")
+            self.assertEqual(window.repository_table.item(0, 3).text(), "未clone")
 
     def test_repository_table_shows_group_first_and_sorts_by_group_then_name(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -103,11 +103,11 @@ class SystemDetailWindowTests(unittest.TestCase):
 
             self.assertEqual(window.repository_table.horizontalHeaderItem(0).text(), "分组")
             self.assertEqual(window.repository_table.horizontalHeaderItem(1).text(), "应用名")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(2).text(), "本地路径")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(3).text(), "分支")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(4).text(), "本地改动")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(5).text(), "远端新代码")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(6).text(), "操作")
+            self.assertEqual(window.repository_table.horizontalHeaderItem(2).text(), "分支")
+            self.assertEqual(window.repository_table.horizontalHeaderItem(3).text(), "本地改动")
+            self.assertEqual(window.repository_table.horizontalHeaderItem(4).text(), "远端新代码")
+            self.assertEqual(window.repository_table.horizontalHeaderItem(5).text(), "操作")
+            self.assertEqual(window.repository_table.columnCount(), 6)
             self.assertEqual(window.repository_table.item(0, 0).text(), "endpoint")
             self.assertEqual(window.repository_table.item(0, 1).text(), "a-web")
             self.assertEqual(window.repository_table.item(1, 0).text(), "server")
@@ -142,18 +142,20 @@ class SystemDetailWindowTests(unittest.TestCase):
                 open_terminal_path=terminal_paths.append,
             )
 
-            operation_widget = window.repository_table.cellWidget(0, 6)
+            operation_widget = window.repository_table.cellWidget(0, 5)
             self.assertIsNotNone(operation_widget)
             buttons = operation_widget.findChildren(QPushButton)
 
-            self.assertEqual([button.text() for button in buttons], ["打本目录", "在终端中打开"])
+            self.assertEqual([button.text() for button in buttons], ["刷新", "打本目录", "在终端中打开"])
             self.assertEqual(buttons[0].minimumWidth(), buttons[0].maximumWidth())
             self.assertEqual(buttons[1].minimumWidth(), buttons[1].maximumWidth())
-            self.assertLessEqual(buttons[0].maximumWidth(), 92)
-            self.assertLessEqual(buttons[1].maximumWidth(), 116)
+            self.assertEqual(buttons[2].minimumWidth(), buttons[2].maximumWidth())
+            self.assertLessEqual(buttons[0].maximumWidth(), 64)
+            self.assertLessEqual(buttons[1].maximumWidth(), 92)
+            self.assertLessEqual(buttons[2].maximumWidth(), 116)
 
-            buttons[0].click()
             buttons[1].click()
+            buttons[2].click()
 
             self.assertEqual(opened_paths, [application.resolve_local_path(Path("D:/workspace/aha"))])
             self.assertEqual(terminal_paths, [application.resolve_local_path(Path("D:/workspace/aha"))])
@@ -184,7 +186,7 @@ class SystemDetailWindowTests(unittest.TestCase):
                 item = window.repository_table.item(0, column)
                 self.assertFalse(item.flags() & Qt.ItemIsSelectable)
 
-    def test_repository_table_uses_compact_fixed_widths_for_short_columns(self) -> None:
+    def test_repository_table_columns_are_user_resizable_with_compact_initial_widths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
@@ -192,17 +194,51 @@ class SystemDetailWindowTests(unittest.TestCase):
             window = SystemDetailWindow(service, GitService(), "aha")
             header = window.repository_table.horizontalHeader()
 
-            self.assertEqual(header.sectionResizeMode(0), QHeaderView.Fixed)
-            self.assertEqual(header.sectionResizeMode(1), QHeaderView.Fixed)
-            self.assertEqual(header.sectionResizeMode(2), QHeaderView.Stretch)
-            self.assertEqual(header.sectionResizeMode(3), QHeaderView.Fixed)
-            self.assertEqual(header.sectionResizeMode(4), QHeaderView.Fixed)
-            self.assertEqual(header.sectionResizeMode(5), QHeaderView.Fixed)
-            self.assertEqual(header.sectionResizeMode(6), QHeaderView.Fixed)
+            for column in range(window.repository_table.columnCount()):
+                self.assertEqual(header.sectionResizeMode(column), QHeaderView.Interactive)
+            self.assertTrue(header.stretchLastSection())
+            self.assertEqual(window.repository_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+            self.assertLessEqual(window.repository_table.columnWidth(2), 120)
             self.assertLessEqual(window.repository_table.columnWidth(3), 120)
-            self.assertLessEqual(window.repository_table.columnWidth(4), 120)
-            self.assertLessEqual(window.repository_table.columnWidth(5), 130)
-            self.assertLessEqual(window.repository_table.columnWidth(6), 230)
+            self.assertLessEqual(window.repository_table.columnWidth(4), 130)
+            self.assertLessEqual(window.repository_table.columnWidth(5), 285)
+
+    def test_repository_table_refresh_button_refreshes_only_current_application(self) -> None:
+        refreshed_applications: list[Application] = []
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            applications = (
+                Application(
+                    name="order-service",
+                    repository_url="https://git.example.com/platform/order-service.git",
+                    group_english_name="platform",
+                    local_dir_name="order-service",
+                ),
+                Application(
+                    name="billing-service",
+                    repository_url="https://git.example.com/platform/billing-service.git",
+                    group_english_name="platform",
+                    local_dir_name="billing-service",
+                ),
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=applications,
+                )
+            )
+            window = SystemDetailWindow(service, GitService(), "aha")
+            window._refresh_application_status = refreshed_applications.append
+
+            operation_widget = window.repository_table.cellWidget(0, 5)
+            self.assertIsNotNone(operation_widget)
+            buttons = operation_widget.findChildren(QPushButton)
+
+            buttons[0].click()
+
+            self.assertEqual(refreshed_applications, [applications[1]])
 
     def test_clone_and_update_respect_submodule_checkbox(self) -> None:
         class RecordingGitService(GitService):

@@ -5,7 +5,8 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QComboBox, QHeaderView, QLineEdit, QPushButton
 
 from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import Application, Group, SystemProfile
@@ -25,6 +26,15 @@ class RepositoryConfigWindowTests(unittest.TestCase):
             self.assertFalse(hasattr(window, "group_table"))
             self.assertEqual(window.application_table.horizontalHeaderItem(5).text(), "操作")
             self.assertEqual([button.text() for button in app_buttons], ["编辑", "删除"])
+
+    def test_application_table_columns_are_user_resizable(self) -> None:
+        with self._window() as window:
+            header = window.application_table.horizontalHeader()
+
+            for column in range(window.application_table.columnCount()):
+                self.assertEqual(header.sectionResizeMode(column), QHeaderView.Interactive)
+            self.assertTrue(header.stretchLastSection())
+            self.assertEqual(window.application_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
 
     def test_double_clicking_application_text_cell_edits_only_that_cell(self) -> None:
         with self._window() as window:

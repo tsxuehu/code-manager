@@ -5,7 +5,8 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QHeaderView, QLineEdit, QPushButton
 
 from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import Group, SystemProfile
@@ -30,6 +31,19 @@ class GroupConfigWindowTests(unittest.TestCase):
 
             self.assertEqual(window.group_table.horizontalHeaderItem(2).text(), "操作")
             self.assertEqual([button.text() for button in buttons], ["编辑", "删除"])
+
+    def test_group_table_columns_are_user_resizable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            system = SystemProfile(name="aha", code_root=Path("D:/workspace/aha"))
+            service.upsert_system(system)
+            window = GroupConfigWindow(service, "aha")
+            header = window.group_table.horizontalHeader()
+
+            for column in range(window.group_table.columnCount()):
+                self.assertEqual(header.sectionResizeMode(column), QHeaderView.Interactive)
+            self.assertTrue(header.stretchLastSection())
+            self.assertEqual(window.group_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
 
     def test_double_clicking_group_cell_edits_only_that_cell(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

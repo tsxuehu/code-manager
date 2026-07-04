@@ -24,7 +24,7 @@ from code_manager.domain.models import Application, SystemProfile
 from code_manager.presentation.dialogs import ApplicationDialog, ImportRepositoriesDialog
 
 APPLICATION_TABLE_ROW_HEIGHT = 36
-APPLICATION_OPERATION_COLUMN_WIDTH = 260
+APPLICATION_OPERATION_COLUMN_WIDTH = 200
 
 
 class RepositoryConfigWindow(QMainWindow):
@@ -74,11 +74,19 @@ class RepositoryConfigWindow(QMainWindow):
         self.application_table.setHorizontalHeaderLabels(
             ["应用名", "分组", "本地目录", "仓库地址", "本地路径", "操作"]
         )
-        for column in range(5):
-            self.application_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
-        self.application_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
+        self.application_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.application_table.horizontalHeader().setStretchLastSection(True)
+        self.application_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.application_table.verticalHeader().setDefaultSectionSize(APPLICATION_TABLE_ROW_HEIGHT)
         self.application_table.verticalHeader().setMinimumSectionSize(APPLICATION_TABLE_ROW_HEIGHT)
+        for column, width in {
+            0: 160,
+            1: 110,
+            2: 140,
+            3: 230,
+            4: 220,
+        }.items():
+            self.application_table.setColumnWidth(column, width)
         self.application_table.setColumnWidth(5, APPLICATION_OPERATION_COLUMN_WIDTH)
         self.application_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.application_table.setSelectionMode(QTableWidget.NoSelection)

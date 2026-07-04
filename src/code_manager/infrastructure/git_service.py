@@ -48,6 +48,8 @@ class GitService:
             command = ["git", "clone"]
             if include_submodules:
                 command.append("--recurse-submodules")
+            else:
+                command.append("--no-recurse-submodules")
             command.extend([application.repository_url, application.local_dir_name])
             self._runner(command, parent_dir)
             return GitOperationResult(application, True, "clone 完成")
@@ -65,7 +67,17 @@ class GitService:
             return GitOperationResult(application, False, "本地仓库不存在，请先 clone")
 
         try:
-            self._runner(["git", "pull", "--ff-only"], local_path)
+            self._runner(
+                [
+                    "git",
+                    "-c",
+                    "submodule.recurse=false",
+                    "pull",
+                    "--ff-only",
+                    "--recurse-submodules=no",
+                ],
+                local_path,
+            )
             if include_submodules:
                 self._runner(["git", "submodule", "update", "--init", "--recursive"], local_path)
             return GitOperationResult(application, True, "更新完成")
