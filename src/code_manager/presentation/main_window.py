@@ -26,6 +26,10 @@ from code_manager.infrastructure.git_service import GitService
 from code_manager.presentation.dialogs import SystemDialog
 from code_manager.presentation.system_detail_window import SystemDetailWindow
 
+SYSTEM_NAME_COLUMN_WIDTH = 170
+SYSTEM_TABLE_ROW_HEIGHT = 36
+SYSTEM_OPERATION_COLUMN_WIDTH = 260
+
 
 class MainWindow(QMainWindow):
     def __init__(
@@ -65,10 +69,13 @@ class MainWindow(QMainWindow):
         layout.addLayout(button_row)
 
         self.system_table.setHorizontalHeaderLabels(["系统名称", "本地代码路径", "操作"])
-        self.system_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.system_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
         self.system_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.system_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
-        self.system_table.setColumnWidth(2, 260)
+        self.system_table.verticalHeader().setDefaultSectionSize(SYSTEM_TABLE_ROW_HEIGHT)
+        self.system_table.verticalHeader().setMinimumSectionSize(SYSTEM_TABLE_ROW_HEIGHT)
+        self.system_table.setColumnWidth(0, SYSTEM_NAME_COLUMN_WIDTH)
+        self.system_table.setColumnWidth(2, SYSTEM_OPERATION_COLUMN_WIDTH)
         self.system_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.system_table.setSelectionMode(QAbstractItemView.NoSelection)
         self.system_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -106,8 +113,9 @@ class MainWindow(QMainWindow):
                 self.system_table.setItem(row, 1, self._read_only_item(str(system.code_root)))
 
             self.system_table.setCellWidget(row, 2, self._build_operation_cell(system.name))
-        self.system_table.setColumnWidth(2, 260)
-        self.system_table.resizeRowsToContents()
+            self.system_table.setRowHeight(row, SYSTEM_TABLE_ROW_HEIGHT)
+        self.system_table.setColumnWidth(0, SYSTEM_NAME_COLUMN_WIDTH)
+        self.system_table.setColumnWidth(2, SYSTEM_OPERATION_COLUMN_WIDTH)
         self.system_table.clearSelection()
         self.system_table.setCurrentCell(-1, -1)
         self.system_table.blockSignals(False)
