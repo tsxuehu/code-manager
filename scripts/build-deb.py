@@ -9,6 +9,12 @@ import sys
 import textwrap
 from pathlib import Path
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from build_utils import clean_directory
+
 
 def read_project_version(project_root: Path) -> str:
     pyproject = project_root / "pyproject.toml"
@@ -289,7 +295,11 @@ def main(argv: list[str] | None = None) -> int:
     architecture = args.architecture or deb_architecture()
     dist_dir = project_root / args.dist_dir
     build_dir = project_root / "build" / "pyinstaller"
-    output_path = project_root / args.output_dir / f"code-manager_{version}_{architecture}.deb"
+    output_dir = project_root / args.output_dir
+    output_path = output_dir / f"code-manager_{version}_{architecture}.deb"
+
+    clean_directory(dist_dir)
+    clean_directory(output_dir)
 
     try:
         bundle_dir = build_pyinstaller_bundle(

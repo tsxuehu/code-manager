@@ -49,12 +49,16 @@ class BuildDebScriptTests(unittest.TestCase):
                 "build_pyinstaller_bundle",
                 return_value=bundle_dir,
             ) as build_bundle, patch.object(
+                build_deb,
+                "clean_directory",
+            ) as clean_directory, patch.object(
                 build_deb.subprocess,
                 "run",
             ) as run:
                 result = build_deb.main([])
 
             self.assertEqual(result, 0)
+            self.assertEqual(clean_directory.call_count, 2)
             build_bundle.assert_called_once()
             command = run.call_args.args[0]
             self.assertEqual(command[0], "dpkg-deb")

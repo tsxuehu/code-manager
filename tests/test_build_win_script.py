@@ -22,10 +22,14 @@ class BuildWinScriptTests(unittest.TestCase):
             build_win.shutil,
             "which",
             return_value="uv",
-        ), patch.object(build_win.subprocess, "run") as run:
+        ), patch.object(build_win, "clean_directory") as clean_directory, patch.object(
+            build_win.subprocess,
+            "run",
+        ) as run:
             result = build_win.main([])
 
         self.assertEqual(result, 0)
+        clean_directory.assert_called_once()
         command = run.call_args.args[0]
         self.assertEqual(command[:5], ["uv", "run", "--with", "PyInstaller>=6.0", "pyinstaller"])
         self.assertIn("--onefile", command)

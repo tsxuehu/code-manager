@@ -7,6 +7,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from build_utils import clean_directory
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="构建 Windows exe")
@@ -46,6 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     entry_file = src_dir / "code_manager" / "__main__.py"
     dist_dir = project_root / args.dist_dir
     build_dir = project_root / "build" / "pyinstaller"
+
+    clean_directory(dist_dir)
 
     command = [
         uv,
