@@ -6,6 +6,7 @@ from pathlib import Path
 from code_manager.domain.models import Application, Group, SystemProfile
 from code_manager.domain.repo_parser import parse_repository_url
 from code_manager.infrastructure.config_store import JsonConfigStore
+from code_manager.infrastructure.system_yaml import dump_system_to_yaml, load_system_from_yaml
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,15 @@ class CodeManagerService:
     def upsert_system(self, system: SystemProfile) -> None:
         self.config.upsert_system(system)
         self.save()
+
+    def export_system_to_yaml(self, system_name: str, yaml_file: Path) -> None:
+        system = self.config.get_system(system_name)
+        yaml_file.write_text(dump_system_to_yaml(system), encoding="utf-8")
+
+    def import_system_from_yaml(self, yaml_file: Path) -> SystemProfile:
+        system = load_system_from_yaml(yaml_file.read_text(encoding="utf-8"))
+        self.upsert_system(system)
+        return system
 
     def delete_system(self, name: str) -> None:
         self.config.delete_system(name)

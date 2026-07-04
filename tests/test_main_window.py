@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QAbstractItemView, QDialog, QHeaderView, QLineEdit, QPushButton
 
 from code_manager.application.config_service import CodeManagerService
-from code_manager.domain.models import SystemProfile
+from code_manager.domain.models import Application, Group, SystemProfile
 from code_manager.infrastructure.config_store import JsonConfigStore
 from code_manager.presentation.main_window import MainWindow
 
@@ -70,7 +70,16 @@ class MainWindowTests(unittest.TestCase):
 
             self.assertEqual(window.system_table.columnCount(), 3)
             self.assertEqual(window.system_table.horizontalHeaderItem(2).text(), "操作")
-            self.assertEqual([button.text() for button in buttons], ["进入", "编辑", "删除"])
+            self.assertEqual([button.text() for button in buttons], ["进入", "编辑", "删除", "导出"])
+
+    def test_system_management_has_import_button(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            window = MainWindow(service=service)
+
+            buttons = [button.text() for button in window.findChildren(QPushButton)]
+
+            self.assertIn("导入系统", buttons)
 
     def test_system_name_column_is_wider_and_rows_have_fixed_height(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -122,7 +131,7 @@ class MainWindowTests(unittest.TestCase):
             self.assertIsNone(path_widget)
             self.assertEqual(editor_input.text(), "aha")
             self.assertEqual([button.text() for button in editor_buttons], ["×", "√"])
-            self.assertEqual([button.text() for button in operation_buttons], ["进入", "编辑", "删除"])
+            self.assertEqual([button.text() for button in operation_buttons], ["进入", "编辑", "删除", "导出"])
 
     def test_cell_editor_does_not_resize_operation_column(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -136,7 +145,7 @@ class MainWindowTests(unittest.TestCase):
             operation_buttons = window.system_table.cellWidget(0, 2).findChildren(QPushButton)
             self.assertEqual(window.system_table.columnWidth(2), operation_width)
             self.assertGreaterEqual(operation_width, 240)
-            self.assertEqual([button.text() for button in operation_buttons], ["进入", "编辑", "删除"])
+            self.assertEqual([button.text() for button in operation_buttons], ["进入", "编辑", "删除", "导出"])
 
     def test_clicking_edit_button_opens_system_dialog(self) -> None:
         class FakeSystemDialog:
@@ -166,6 +175,74 @@ class MainWindowTests(unittest.TestCase):
             self.assertEqual(window.system_table.item(0, 0).text(), "axo")
             self.assertIsNone(window.system_table.cellWidget(0, 0))
             self.assertIsNone(window.system_table.cellWidget(0, 1))
+
+    def test_export_button_writes_system_yaml(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            system = SystemProfile(
+                name="aha",
+                code_root=Path("D:/workspace/aha"),
+                groups=[Group(chinese_name="服务端", english_name="server")],
+                applications=[
+                    Application(
+                        name="order-service",
+                        repository_url="git@example.com:aha/server/order-service.git",
+                        group_english_name="server",
+                        local_dir_name="order-service",
+                    )
+                ],
+            )
+            service.upsert_system(system)
+            window = MainWindow(service=service)
+            yaml_file = Path(temp_dir) / "aha.yaml"
+
+            with patch(
+                "code_manager.presentation.main_window.QFileDialog.getSaveFileName",
+                return_value=(str(yaml_file), "YAML"),
+            ):
+                export_button = window.system_table.cellWidget(0, 2).findChildren(QPushButton)[3]
+                export_button.click()
+
+            yaml_text = yaml_file.read_text(encoding="utf-8")
+            self.assertIn('name: "aha"', yaml_text)
+            self.assertIn('english_name: "server"', yaml_text)
+            self.assertIn('name: "order-service"', yaml_text)
+
+    def test_import_button_loads_system_yaml(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            window = MainWindow(service=service)
+            yaml_file = Path(temp_dir) / "aha.yaml"
+            yaml_file.write_text(
+                """
+system:
+  name: "aha"
+  code_root: "D:/workspace/aha"
+groups:
+  - chinese_name: "服务端"
+    english_name: "server"
+applications:
+  - name: "order-service"
+    repository_url: "git@example.com:aha/server/order-service.git"
+    group_english_name: "server"
+    local_dir_name: "order-service"
+""",
+                encoding="utf-8",
+            )
+
+            with patch(
+                "code_manager.presentation.main_window.QFileDialog.getOpenFileName",
+                return_value=(str(yaml_file), "YAML"),
+            ):
+                import_button = [
+                    button for button in window.findChildren(QPushButton) if button.text() == "导入系统"
+                ][0]
+                import_button.click()
+
+            self.assertEqual(window.system_table.rowCount(), 1)
+            imported = service.config.get_system("aha")
+            self.assertEqual(imported.groups[0].english_name, "server")
+            self.assertEqual(imported.applications[0].name, "order-service")
 
     def test_confirm_cell_edit_applies_system_name_change(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

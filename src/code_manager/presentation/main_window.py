@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
     QDialog,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -28,7 +29,7 @@ from code_manager.presentation.system_detail_window import SystemDetailWindow
 
 SYSTEM_NAME_COLUMN_WIDTH = 170
 SYSTEM_TABLE_ROW_HEIGHT = 36
-SYSTEM_OPERATION_COLUMN_WIDTH = 240
+SYSTEM_OPERATION_COLUMN_WIDTH = 300
 
 
 class MainWindow(QMainWindow):
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
         button_row = QHBoxLayout()
         for label, handler in [
             ("新增系统", self.add_system),
+            ("导入系统", self.import_system_from_yaml),
         ]:
             button = QPushButton(label)
             button.clicked.connect(handler)
@@ -75,7 +77,7 @@ class MainWindow(QMainWindow):
         self.system_table.verticalHeader().setDefaultSectionSize(SYSTEM_TABLE_ROW_HEIGHT)
         self.system_table.verticalHeader().setMinimumSectionSize(SYSTEM_TABLE_ROW_HEIGHT)
         self.system_table.setColumnWidth(0, SYSTEM_NAME_COLUMN_WIDTH)
-        self.system_table.setColumnWidth(1, 240)
+        self.system_table.setColumnWidth(1, 200)
         self.system_table.setColumnWidth(2, SYSTEM_OPERATION_COLUMN_WIDTH)
         self.system_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.system_table.setSelectionMode(QAbstractItemView.NoSelection)
@@ -166,6 +168,7 @@ class MainWindow(QMainWindow):
             ("进入", self.open_system_detail),
             ("编辑", self.edit_system),
             ("删除", self.delete_system),
+            ("导出", self.export_system_to_yaml),
         ]:
             button = QPushButton(label)
             button.clicked.connect(lambda _checked=False, name=system_name, action=handler: action(name))
@@ -250,6 +253,43 @@ class MainWindow(QMainWindow):
             self.status_label.setText("系统已更新")
         except ValueError as exc:
             QMessageBox.warning(self, "保存失败", str(exc))
+
+    def import_system_from_yaml(self) -> None:
+        file_name, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "导入系统",
+            str(Path.home()),
+            "YAML 文件 (*.yaml *.yml)",
+        )
+        if not file_name:
+            return
+        try:
+            system = self.service.import_system_from_yaml(Path(file_name))
+            self.refresh_table()
+            self.status_label.setText(f"系统已导入: {system.name}")
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "导入失败", str(exc))
+
+    def export_system_to_yaml(self, system_name: str | None = None) -> None:
+        system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
+        if not system:
+            return
+        file_name, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "导出系统",
+            str(Path.home() / f"{system.name}.yaml"),
+            "YAML 文件 (*.yaml *.yml)",
+        )
+        if not file_name:
+            return
+        yaml_file = Path(file_name)
+        if yaml_file.suffix.lower() not in (".yaml", ".yml"):
+            yaml_file = yaml_file.with_suffix(".yaml")
+        try:
+            self.service.export_system_to_yaml(system.name, yaml_file)
+            self.status_label.setText(f"系统已导出: {yaml_file}")
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "导出失败", str(exc))
 
     def start_cell_edit(self, row: int, column: int) -> None:
         if column not in (0, 1) or row < 0 or row >= len(self.service.config.systems):
