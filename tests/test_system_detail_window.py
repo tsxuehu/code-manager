@@ -147,6 +147,10 @@ class SystemDetailWindowTests(unittest.TestCase):
             buttons = operation_widget.findChildren(QPushButton)
 
             self.assertEqual([button.text() for button in buttons], ["打本目录", "在终端中打开"])
+            self.assertEqual(buttons[0].minimumWidth(), buttons[0].maximumWidth())
+            self.assertEqual(buttons[1].minimumWidth(), buttons[1].maximumWidth())
+            self.assertLessEqual(buttons[0].maximumWidth(), 92)
+            self.assertLessEqual(buttons[1].maximumWidth(), 116)
 
             buttons[0].click()
             buttons[1].click()
@@ -198,6 +202,7 @@ class SystemDetailWindowTests(unittest.TestCase):
             self.assertLessEqual(window.repository_table.columnWidth(3), 120)
             self.assertLessEqual(window.repository_table.columnWidth(4), 120)
             self.assertLessEqual(window.repository_table.columnWidth(5), 130)
+            self.assertLessEqual(window.repository_table.columnWidth(6), 230)
 
     def test_clone_and_update_respect_submodule_checkbox(self) -> None:
         class RecordingGitService(GitService):

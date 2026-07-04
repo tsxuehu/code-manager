@@ -97,7 +97,7 @@ class SystemDetailWindow(QMainWindow):
             3: 90,
             4: 100,
             5: 115,
-            6: 290,
+            6: 220,
         }
         for column, width in column_widths.items():
             header.setSectionResizeMode(column, QHeaderView.Fixed)
@@ -248,15 +248,18 @@ class SystemDetailWindow(QMainWindow):
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(4, 2, 4, 2)
         open_directory_button = QPushButton("打本目录")
+        open_directory_button.setFixedWidth(86)
         open_directory_button.clicked.connect(
             lambda _checked=False: self._handle_open_local_path(application, local_path)
         )
         terminal_button = QPushButton("在终端中打开")
+        terminal_button.setFixedWidth(112)
         terminal_button.clicked.connect(
             lambda _checked=False: self._handle_open_terminal_path(application, local_path)
         )
         layout.addWidget(open_directory_button)
         layout.addWidget(terminal_button)
+        layout.addStretch(1)
         return widget
 
     def _handle_open_local_path(self, application: Application, local_path: Path) -> None:
