@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication
 
 from code_manager.presentation.app_controller import ApplicationController
 from code_manager.presentation.app_icon import app_icon_path
+from code_manager.presentation.single_instance import SingleInstanceGuard
 
 
 def main() -> int:
@@ -15,6 +16,9 @@ def main() -> int:
     if icon_path is not None:
         app.setWindowIcon(QIcon(str(icon_path)))
     controller = ApplicationController()
+    guard = SingleInstanceGuard(controller.show_system_list)
+    if not guard.try_acquire():
+        return 0
     controller.start()
     return app.exec()
 
