@@ -1,0 +1,31 @@
+[project]
+name = "code-manager"
+version = "0.1.0"
+description = "Desktop application for managing application source repositories."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.7.0",
+]
+
+[project.scripts]
+code-manager = "code_manager.__main__:main"
+
+[dependency-groups]
+dev = []
+
+[build-system]
+requires = ["uv_build>=0.8.0,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = "src"
+module-name = "code_manager"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
