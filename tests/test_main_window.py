@@ -12,6 +12,8 @@ from PySide6.QtWidgets import QApplication, QAbstractItemView, QDialog, QHeaderV
 from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import Application, Group, SystemProfile
 from code_manager.infrastructure.config_store import JsonConfigStore
+from code_manager.infrastructure.git_service import GitService
+from code_manager.presentation.app_controller import ApplicationController
 from code_manager.presentation.main_window import MainWindow
 
 
@@ -339,21 +341,43 @@ applications:
 
             window.system_table.cellDoubleClicked.emit(0, 0)
 
-            self.assertEqual(window.detail_windows, {})
+            controller = ApplicationController(service=service)
+            self.assertEqual(controller.detail_windows, {})
 
     def test_same_system_detail_window_opens_only_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            controller = ApplicationController(service=service, git_service=GitService())
+            controller.show_system_list()
+            window = controller.main_window
+            assert window is not None
 
             window.open_system_detail("aha")
-            first_detail_window = window.detail_windows["aha"]
-            window.open_system_detail("aha")
+            first_detail_window = controller.detail_windows["aha"]
+            self.assertFalse(window.isVisible())
 
-            self.assertEqual(len(window.detail_windows), 1)
-            self.assertIs(window.detail_windows["aha"], first_detail_window)
+            controller.open_system_detail("aha")
+
+            self.assertEqual(len(controller.detail_windows), 1)
+            self.assertIs(controller.detail_windows["aha"], first_detail_window)
             first_detail_window.close()
+
+    def test_open_system_detail_closes_main_window(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
+            controller = ApplicationController(service=service, git_service=GitService())
+            controller.show_system_list()
+            window = controller.main_window
+            assert window is not None
+
+            window.open_system_detail("aha")
+
+            self.assertIn("aha", controller.detail_windows)
+            self.assertTrue(controller.detail_windows["aha"].isVisible())
+            self.assertFalse(window.isVisible())
+            controller.detail_windows["aha"].close()
 
 
 if __name__ == "__main__":

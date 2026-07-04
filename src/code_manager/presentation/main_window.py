@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -25,8 +26,10 @@ from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import SystemProfile
 from code_manager.infrastructure.git_service import GitService
 from code_manager.presentation.dialogs import SystemDialog
-from code_manager.presentation.system_detail_window import SystemDetailWindow
 from code_manager.presentation.table_hover import install_row_hover_highlight
+
+if TYPE_CHECKING:
+    from code_manager.presentation.app_controller import ApplicationController
 
 SYSTEM_NAME_COLUMN_WIDTH = 170
 SYSTEM_TABLE_ROW_HEIGHT = 36
@@ -38,12 +41,13 @@ class MainWindow(QMainWindow):
         self,
         service: CodeManagerService | None = None,
         git_service: GitService | None = None,
+        controller: ApplicationController | None = None,
     ) -> None:
         super().__init__()
         self.setWindowTitle("系统管理")
         self.service = service or CodeManagerService()
         self.git_service = git_service or GitService()
-        self.detail_windows: dict[str, SystemDetailWindow] = {}
+        self.controller = controller
         self.editing_cell: tuple[str, int] | None = None
 
         self.system_table = QTableWidget(0, 3)
@@ -195,6 +199,11 @@ class MainWindow(QMainWindow):
         return cell
 
     def open_system_detail(self, system_name: str | None = None) -> None:
+        if self.controller is not None:
+            if self.controller.open_system_detail(system_name, parent=self):
+                self.close()
+            return
+
         system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
         if not system:
             QMessageBox.information(
@@ -203,27 +212,11 @@ class MainWindow(QMainWindow):
                 "请先选择一个系统。",
             )
             return
-        existing_window = self.detail_windows.get(system.name)
-        if existing_window:
-            self._activate_detail_window(existing_window)
-            self.status_label.setText(f"已切换到系统: {system.name}")
-            return
-        self.service.select_system(system.name)
-        window = SystemDetailWindow(self.service, self.git_service, system.name)
-        window.setAttribute(Qt.WA_DeleteOnClose, True)
-        window.destroyed.connect(lambda _obj=None, name=system.name: self.detail_windows.pop(name, None))
-        window.resize(1180, 720)
-        window.show()
-        self.detail_windows[system.name] = window
-        self.status_label.setText(f"已打开系统: {system.name}")
-
-    def _activate_detail_window(self, window: SystemDetailWindow) -> None:
-        if window.isMinimized():
-            window.showNormal()
-        else:
-            window.show()
-        window.raise_()
-        window.activateWindow()
+        QMessageBox.information(
+            self,
+            "无法打开系统",
+            "请通过应用托盘启动系统详情窗口。",
+        )
 
     def add_system(self) -> None:
         dialog = SystemDialog()
