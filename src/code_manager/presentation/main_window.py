@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
@@ -8,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -35,6 +38,7 @@ class MainWindow(QMainWindow):
         self.service = service or CodeManagerService()
         self.git_service = git_service or GitService()
         self.detail_windows: dict[str, SystemDetailWindow] = {}
+        self.editing_cell: tuple[str, int] | None = None
 
         self.system_table = QTableWidget(0, 3)
         self.status_label = QLabel("就绪")
@@ -63,13 +67,14 @@ class MainWindow(QMainWindow):
         self.system_table.setHorizontalHeaderLabels(["系统名称", "本地代码路径", "操作"])
         self.system_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.system_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.system_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.system_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.system_table.setColumnWidth(2, 260)
         self.system_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.system_table.setSelectionMode(QAbstractItemView.NoSelection)
         self.system_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.system_table.setFocusPolicy(Qt.NoFocus)
         self.system_table.setStyleSheet("QTableWidget::item:focus { outline: none; }")
-        self.system_table.cellDoubleClicked.connect(lambda _row, _column: self.open_system_detail())
+        self.system_table.cellDoubleClicked.connect(self.start_cell_edit)
         layout.addWidget(self.system_table, 1)
         layout.addWidget(self.status_label)
         self.setCentralWidget(root)
@@ -79,9 +84,29 @@ class MainWindow(QMainWindow):
         self.system_table.clearContents()
         self.system_table.setRowCount(len(self.service.config.systems))
         for row, system in enumerate(self.service.config.systems):
-            self.system_table.setItem(row, 0, self._read_only_item(system.name))
-            self.system_table.setItem(row, 1, self._read_only_item(str(system.code_root)))
+            editing_column = self._editing_column_for(system.name)
+            self.system_table.removeCellWidget(row, 0)
+            self.system_table.removeCellWidget(row, 1)
+            if editing_column == 0:
+                self.system_table.setCellWidget(
+                    row,
+                    0,
+                    self._build_cell_editor(system.name, system.name, 0),
+                )
+            else:
+                self.system_table.setItem(row, 0, self._read_only_item(system.name))
+
+            if editing_column == 1:
+                self.system_table.setCellWidget(
+                    row,
+                    1,
+                    self._build_cell_editor(str(system.code_root), system.name, 1),
+                )
+            else:
+                self.system_table.setItem(row, 1, self._read_only_item(str(system.code_root)))
+
             self.system_table.setCellWidget(row, 2, self._build_operation_cell(system.name))
+        self.system_table.setColumnWidth(2, 260)
         self.system_table.resizeRowsToContents()
         self.system_table.clearSelection()
         self.system_table.setCurrentCell(-1, -1)
@@ -94,6 +119,32 @@ class MainWindow(QMainWindow):
         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
         return item
 
+    def _build_cell_editor(self, text: str, system_name: str, column: int) -> QWidget:
+        cell = QWidget()
+        layout = QHBoxLayout(cell)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
+
+        input_widget = QLineEdit(text)
+        input_widget.setMinimumHeight(28)
+        input_widget.setStyleSheet("QLineEdit { padding: 2px 6px; }")
+        layout.addWidget(input_widget, 1)
+
+        for label, handler in [
+            ("×", self.cancel_cell_edit),
+            ("√", self.confirm_cell_edit),
+        ]:
+            button = QPushButton(label)
+            button.setFixedSize(26, 28)
+            button.clicked.connect(
+                lambda _checked=False, name=system_name, col=column, action=handler: action(
+                    name,
+                    col,
+                )
+            )
+            layout.addWidget(button)
+        return cell
+
     def _build_operation_cell(self, system_name: str) -> QWidget:
         cell = QWidget()
         layout = QHBoxLayout(cell)
@@ -104,6 +155,22 @@ class MainWindow(QMainWindow):
             ("进入", self.open_system_detail),
             ("编辑", self.edit_system),
             ("删除", self.delete_system),
+        ]:
+            button = QPushButton(label)
+            button.clicked.connect(lambda _checked=False, name=system_name, action=handler: action(name))
+            layout.addWidget(button)
+        layout.addStretch(1)
+        return cell
+
+    def _build_edit_operation_cell(self, system_name: str) -> QWidget:
+        cell = QWidget()
+        layout = QHBoxLayout(cell)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        for label, handler in [
+            ("确认", self.confirm_system_edit),
+            ("取消", self.cancel_system_edit),
         ]:
             button = QPushButton(label)
             button.clicked.connect(lambda _checked=False, name=system_name, action=handler: action(name))
@@ -167,7 +234,53 @@ class MainWindow(QMainWindow):
             if updated.name.lower() != system.name.lower():
                 self.service.delete_system(system.name)
             self.service.upsert_system(updated)
+            self.editing_cell = None
             self.refresh_table()
+            self.status_label.setText("系统已更新")
+        except ValueError as exc:
+            QMessageBox.warning(self, "保存失败", str(exc))
+
+    def start_cell_edit(self, row: int, column: int) -> None:
+        if column not in (0, 1) or row < 0 or row >= len(self.service.config.systems):
+            return
+        system = self.service.config.systems[row]
+        self.editing_cell = (system.name, column)
+        self.refresh_table()
+        self._focus_editing_cell(system.name, column)
+        self.status_label.setText(f"正在编辑{self._cell_label(column)}: {system.name}")
+
+    def cancel_cell_edit(self, system_name: str | None = None, column: int | None = None) -> None:
+        self.editing_cell = None
+        self.refresh_table()
+        if system_name:
+            self.status_label.setText(f"已取消编辑{self._cell_label(column)}: {system_name}")
+
+    def confirm_cell_edit(self, system_name: str | None = None, column: int | None = None) -> None:
+        system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
+        if not system or column not in (0, 1):
+            return
+        row = self._find_system_row(system.name)
+        if row < 0:
+            return
+        editor = self.system_table.cellWidget(row, column)
+        input_widget = editor.findChild(QLineEdit) if editor else None
+        if not isinstance(input_widget, QLineEdit):
+            return
+        try:
+            updated = SystemProfile(
+                name=input_widget.text().strip() if column == 0 else system.name,
+                code_root=Path(input_widget.text().strip()).expanduser()
+                if column == 1
+                else system.code_root,
+            )
+            updated.groups = system.groups
+            updated.applications = system.applications
+            if updated.name.lower() != system.name.lower():
+                self.service.delete_system(system.name)
+            self.service.upsert_system(updated)
+            self.editing_cell = None
+            self.refresh_table()
+            self.status_label.setText(f"{self._cell_label(column)}已更新")
         except ValueError as exc:
             QMessageBox.warning(self, "保存失败", str(exc))
 
@@ -193,3 +306,31 @@ class MainWindow(QMainWindow):
         if row < 0 or row >= len(self.service.config.systems):
             return None
         return self.service.config.systems[row]
+
+    def _find_system_row(self, system_name: str) -> int:
+        normalized = system_name.lower()
+        for row, system in enumerate(self.service.config.systems):
+            if system.name.lower() == normalized:
+                return row
+        return -1
+
+    def _focus_editing_cell(self, system_name: str, column: int) -> None:
+        row = self._find_system_row(system_name)
+        if row < 0:
+            return
+        editor = self.system_table.cellWidget(row, column)
+        input_widget = editor.findChild(QLineEdit) if editor else None
+        if isinstance(input_widget, QLineEdit):
+            input_widget.setFocus()
+            input_widget.selectAll()
+
+    def _editing_column_for(self, system_name: str) -> int | None:
+        if not self.editing_cell:
+            return None
+        editing_system_name, column = self.editing_cell
+        if editing_system_name.lower() == system_name.lower():
+            return column
+        return None
+
+    def _cell_label(self, column: int | None) -> str:
+        return "系统名称" if column == 0 else "本地代码路径"
