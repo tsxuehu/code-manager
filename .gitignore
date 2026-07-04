@@ -1,5 +1,7 @@
 .venv/
 .uv-cache/
+build/
+dist/
 __pycache__/
 *.py[cod]
 .pytest_cache/
