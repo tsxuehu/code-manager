@@ -32,7 +32,12 @@ class GitService:
     def __init__(self, runner: CommandRunner | None = None) -> None:
         self._runner = runner or self._run_command
 
-    def clone(self, application: Application, code_root: Path) -> GitOperationResult:
+    def clone(
+        self,
+        application: Application,
+        code_root: Path,
+        include_submodules: bool = False,
+    ) -> GitOperationResult:
         local_path = application.resolve_local_path(code_root)
         if (local_path / ".git").exists():
             return GitOperationResult(application, True, "仓库已存在，跳过 clone")
@@ -40,18 +45,29 @@ class GitService:
         parent_dir = local_path.parent
         parent_dir.mkdir(parents=True, exist_ok=True)
         try:
-            self._runner(["git", "clone", application.repository_url, application.local_dir_name], parent_dir)
+            command = ["git", "clone"]
+            if include_submodules:
+                command.append("--recurse-submodules")
+            command.extend([application.repository_url, application.local_dir_name])
+            self._runner(command, parent_dir)
             return GitOperationResult(application, True, "clone 完成")
         except subprocess.CalledProcessError as exc:
             return GitOperationResult(application, False, self._format_error(exc))
 
-    def update(self, application: Application, code_root: Path) -> GitOperationResult:
+    def update(
+        self,
+        application: Application,
+        code_root: Path,
+        include_submodules: bool = False,
+    ) -> GitOperationResult:
         local_path = application.resolve_local_path(code_root)
         if not (local_path / ".git").exists():
             return GitOperationResult(application, False, "本地仓库不存在，请先 clone")
 
         try:
             self._runner(["git", "pull", "--ff-only"], local_path)
+            if include_submodules:
+                self._runner(["git", "submodule", "update", "--init", "--recursive"], local_path)
             return GitOperationResult(application, True, "更新完成")
         except subprocess.CalledProcessError as exc:
             return GitOperationResult(application, False, self._format_error(exc))

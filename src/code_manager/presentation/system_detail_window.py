@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import os
+import platform
+import shutil
+import subprocess
 from pathlib import Path
+import shlex
 
 from PySide6.QtCore import Qt, QThreadPool, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -32,17 +38,20 @@ class SystemDetailWindow(QMainWindow):
         git_service: GitService,
         system_name: str,
         open_local_path: Callable[[Path], object] | None = None,
+        open_terminal_path: Callable[[Path], object] | None = None,
     ) -> None:
         super().__init__()
         self.service = service
         self.git_service = git_service
         self.system_name = system_name
         self.open_local_path = open_local_path or self._open_local_path
+        self.open_terminal_path = open_terminal_path or self._open_terminal_path
         self.thread_pool = QThreadPool.globalInstance()
         self.status_by_url: dict[str, RepositoryStatus] = {}
         self.repository_config_window: RepositoryConfigWindow | None = None
         self.group_config_window: GroupConfigWindow | None = None
 
+        self.include_submodules_checkbox = QCheckBox("操作应用于 sub module")
         self.repository_table = QTableWidget(0, 7)
         self.status_label = QLabel("就绪")
 
@@ -66,6 +75,7 @@ class SystemDetailWindow(QMainWindow):
             button = QPushButton(label)
             button.clicked.connect(handler)
             button_row.addWidget(button)
+        button_row.addWidget(self.include_submodules_checkbox)
         button_row.addStretch(1)
         layout.addLayout(button_row)
 
@@ -80,9 +90,19 @@ class SystemDetailWindow(QMainWindow):
                 "操作",
             ]
         )
-        self.repository_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.repository_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
-        self.repository_table.setColumnWidth(6, 150)
+        header = self.repository_table.horizontalHeader()
+        column_widths = {
+            0: 120,
+            1: 260,
+            3: 90,
+            4: 100,
+            5: 115,
+            6: 290,
+        }
+        for column, width in column_widths.items():
+            header.setSectionResizeMode(column, QHeaderView.Fixed)
+            self.repository_table.setColumnWidth(column, width)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
         self.repository_table.setSelectionMode(QTableWidget.NoSelection)
         self.repository_table.setFocusPolicy(Qt.NoFocus)
         self.repository_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -154,10 +174,15 @@ class SystemDetailWindow(QMainWindow):
 
     def clone_all(self) -> None:
         system = self._system()
+        include_submodules = self.include_submodules_checkbox.isChecked()
         self._run_batch(
             "clone",
             system,
-            lambda application: self.git_service.clone(application, system.code_root),
+            lambda application: self.git_service.clone(
+                application,
+                system.code_root,
+                include_submodules=include_submodules,
+            ),
         )
 
     def refresh_statuses(self) -> None:
@@ -170,10 +195,15 @@ class SystemDetailWindow(QMainWindow):
 
     def update_all(self) -> None:
         system = self._system()
+        include_submodules = self.include_submodules_checkbox.isChecked()
         self._run_batch(
             "拉代码",
             system,
-            lambda application: self.git_service.update(application, system.code_root),
+            lambda application: self.git_service.update(
+                application,
+                system.code_root,
+                include_submodules=include_submodules,
+            ),
         )
 
     def _run_batch(
@@ -217,9 +247,16 @@ class SystemDetailWindow(QMainWindow):
         widget = QWidget()
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(4, 2, 4, 2)
-        button = QPushButton("打本目录")
-        button.clicked.connect(lambda _checked=False: self._handle_open_local_path(application, local_path))
-        layout.addWidget(button)
+        open_directory_button = QPushButton("打本目录")
+        open_directory_button.clicked.connect(
+            lambda _checked=False: self._handle_open_local_path(application, local_path)
+        )
+        terminal_button = QPushButton("在终端中打开")
+        terminal_button.clicked.connect(
+            lambda _checked=False: self._handle_open_terminal_path(application, local_path)
+        )
+        layout.addWidget(open_directory_button)
+        layout.addWidget(terminal_button)
         return widget
 
     def _handle_open_local_path(self, application: Application, local_path: Path) -> None:
@@ -228,3 +265,51 @@ class SystemDetailWindow(QMainWindow):
 
     def _open_local_path(self, local_path: Path) -> bool:
         return QDesktopServices.openUrl(QUrl.fromLocalFile(str(local_path)))
+
+    def _handle_open_terminal_path(self, application: Application, local_path: Path) -> None:
+        self.open_terminal_path(local_path)
+        self.status_label.setText(f"在终端中打开: {application.name}")
+
+    def _open_terminal_path(self, local_path: Path) -> bool:
+        local_path.mkdir(parents=True, exist_ok=True)
+        system_name = platform.system()
+        if system_name == "Windows":
+            creation_flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            subprocess.Popen(["powershell.exe", "-NoExit"], cwd=local_path, creationflags=creation_flags)
+            return True
+        if system_name == "Darwin":
+            return self._open_terminal_on_macos(local_path)
+        return self._open_terminal_on_linux(local_path)
+
+    def _open_terminal_on_linux(self, local_path: Path) -> bool:
+        candidates = [
+            os.environ.get("TERMINAL"),
+            "x-terminal-emulator",
+            "gnome-terminal",
+            "konsole",
+            "xfce4-terminal",
+            "xterm",
+        ]
+        for candidate in candidates:
+            if candidate and shutil.which(candidate):
+                subprocess.Popen([candidate], cwd=local_path)
+                return True
+        return False
+
+    def _open_terminal_on_macos(self, local_path: Path) -> bool:
+        if Path("/Applications/iTerm.app").exists() and shutil.which("osascript"):
+            quoted_path = shlex.quote(str(local_path))
+            script = (
+                'tell application "iTerm"\n'
+                "  create window with default profile\n"
+                "  tell current session of current window\n"
+                f'    write text "cd {quoted_path}"\n'
+                "  end tell\n"
+                "end tell"
+            )
+            subprocess.Popen(["osascript", "-e", script])
+            return True
+        if shutil.which("open"):
+            subprocess.Popen(["open", "-a", "Terminal", str(local_path)])
+            return True
+        return False

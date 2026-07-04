@@ -60,6 +60,64 @@ class GitServiceTests(unittest.TestCase):
                 ],
             )
 
+    def test_clone_includes_submodules_when_requested(self) -> None:
+        commands: list[tuple[list[str], Path | None]] = []
+
+        def runner(command: list[str], cwd: Path | None = None) -> str:
+            commands.append((command, cwd))
+            return ""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = GitService(runner=runner)
+            app = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+
+            result = service.clone(app, Path(temp_dir), include_submodules=True)
+
+            self.assertTrue(result.success)
+            self.assertEqual(
+                commands,
+                [
+                    (
+                        ["git", "clone", "--recurse-submodules", app.repository_url, "order-service"],
+                        Path(temp_dir) / "platform",
+                    )
+                ],
+            )
+
+    def test_update_updates_submodules_when_requested(self) -> None:
+        commands: list[tuple[list[str], Path | None]] = []
+
+        def runner(command: list[str], cwd: Path | None = None) -> str:
+            commands.append((command, cwd))
+            return ""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            local_path = Path(temp_dir) / "platform" / "order-service"
+            (local_path / ".git").mkdir(parents=True)
+            service = GitService(runner=runner)
+            app = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+
+            result = service.update(app, Path(temp_dir), include_submodules=True)
+
+            self.assertTrue(result.success)
+            self.assertEqual(
+                commands,
+                [
+                    (["git", "pull", "--ff-only"], local_path),
+                    (["git", "submodule", "update", "--init", "--recursive"], local_path),
+                ],
+            )
+
     def test_status_marks_repository_as_missing_when_not_cloned(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = GitService()
