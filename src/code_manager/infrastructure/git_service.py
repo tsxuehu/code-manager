@@ -24,6 +24,7 @@ class RepositoryStatus:
     exists: bool
     branch: str
     has_local_changes: bool
+    has_unpushed_commits: bool
     has_remote_updates: bool
     message: str
 
@@ -93,6 +94,7 @@ class GitService:
                 exists=False,
                 branch="-",
                 has_local_changes=False,
+                has_unpushed_commits=False,
                 has_remote_updates=False,
                 message="本地仓库不存在",
             )
@@ -101,14 +103,16 @@ class GitService:
             self._runner(["git", "fetch", "--quiet"], local_path)
             branch = self._runner(["git", "branch", "--show-current"], local_path).strip() or "(detached)"
             status_text = self._runner(["git", "status", "--porcelain"], local_path)
-            remote_updates = self._has_remote_updates(local_path)
+            tracking_status = self._runner(["git", "status", "-sb"], local_path)
+            has_remote_updates, has_unpushed_commits = self._tracking_flags(tracking_status)
             return RepositoryStatus(
                 application=application,
                 local_path=local_path,
                 exists=True,
                 branch=branch,
                 has_local_changes=bool(status_text.strip()),
-                has_remote_updates=remote_updates,
+                has_unpushed_commits=has_unpushed_commits,
+                has_remote_updates=has_remote_updates,
                 message="状态已刷新",
             )
         except subprocess.CalledProcessError as exc:
@@ -118,13 +122,20 @@ class GitService:
                 exists=True,
                 branch="-",
                 has_local_changes=False,
+                has_unpushed_commits=False,
                 has_remote_updates=False,
                 message=self._format_error(exc),
             )
 
+    def _tracking_flags(self, status_output: str) -> tuple[bool, bool]:
+        has_remote_updates = "behind" in status_output or "diverged" in status_output
+        has_unpushed_commits = "ahead" in status_output
+        return has_remote_updates, has_unpushed_commits
+
     def _has_remote_updates(self, local_path: Path) -> bool:
         output = self._runner(["git", "status", "-sb"], local_path)
-        return "behind" in output or "diverged" in output
+        has_remote_updates, _ = self._tracking_flags(output)
+        return has_remote_updates
 
     def _run_command(self, command: list[str], cwd: Path | None) -> str:
         completed = subprocess.run(

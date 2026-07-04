@@ -181,7 +181,42 @@ class GitServiceTests(unittest.TestCase):
             self.assertFalse(status.exists)
             self.assertEqual(status.branch, "-")
             self.assertFalse(status.has_local_changes)
+            self.assertFalse(status.has_unpushed_commits)
             self.assertEqual(status.message, "本地仓库不存在")
+
+    def test_status_detects_unpushed_commits_from_tracking_status(self) -> None:
+        commands: list[list[str]] = []
+
+        def runner(command: list[str], cwd: Path | None = None) -> str:
+            commands.append(command)
+            if command[:3] == ["git", "fetch", "--quiet"]:
+                return ""
+            if command[:3] == ["git", "branch", "--show-current"]:
+                return "master\n"
+            if command[:3] == ["git", "status", "--porcelain"]:
+                return ""
+            if command[:3] == ["git", "status", "-sb"]:
+                return "## master...origin/master [ahead 2]\n"
+            return ""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            local_path = Path(temp_dir) / "platform" / "order-service"
+            (local_path / ".git").mkdir(parents=True)
+            service = GitService(runner=runner)
+            app = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+
+            status = service.status(app, Path(temp_dir))
+
+            self.assertTrue(status.exists)
+            self.assertEqual(status.branch, "master")
+            self.assertFalse(status.has_local_changes)
+            self.assertTrue(status.has_unpushed_commits)
+            self.assertFalse(status.has_remote_updates)
 
 
 if __name__ == "__main__":

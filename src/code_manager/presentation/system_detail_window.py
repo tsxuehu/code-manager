@@ -53,7 +53,7 @@ class SystemDetailWindow(QMainWindow):
         self.group_config_window: GroupConfigWindow | None = None
 
         self.include_submodules_checkbox = QCheckBox("操作应用于 sub module")
-        self.repository_table = QTableWidget(0, 6)
+        self.repository_table = QTableWidget(0, 5)
         self.status_label = QLabel("就绪")
 
         self.setWindowTitle(f"系统详情 - {system_name}")
@@ -84,25 +84,24 @@ class SystemDetailWindow(QMainWindow):
             [
                 "分组",
                 "应用名",
-                "分支",
-                "本地改动",
-                "远端新代码",
+                "本地状态",
+                "远端状态",
                 "操作",
             ]
         )
         header = self.repository_table.horizontalHeader()
         column_widths = {
             0: 120,
-            1: 260,
-            2: 90,
-            3: 100,
-            4: 115,
-            5: 275,
+            1: 220,
+            2: 420,
+            3: 115,
+            4: 275,
         }
         for column, width in column_widths.items():
             header.setSectionResizeMode(column, QHeaderView.Interactive)
             self.repository_table.setColumnWidth(column, width)
         header.setStretchLastSection(True)
+        self.repository_table.verticalHeader().setVisible(False)
         self.repository_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.repository_table.setSelectionMode(QTableWidget.NoSelection)
         self.repository_table.setFocusPolicy(Qt.NoFocus)
@@ -125,15 +124,14 @@ class SystemDetailWindow(QMainWindow):
             values = [
                 application.group_english_name,
                 application.name,
-                status.branch if status else "-",
-                self._local_changes_text(status),
-                self._yes_no(status.has_remote_updates) if status else "-",
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
                 self.repository_table.setItem(row, column, item)
-            self.repository_table.setCellWidget(row, 5, self._operation_widget(application, local_path))
+            self.repository_table.setCellWidget(row, 2, self._local_status_widget(status))
+            self.repository_table.setCellWidget(row, 3, self._remote_status_widget(status))
+            self.repository_table.setCellWidget(row, 4, self._operation_widget(application, local_path))
 
     def open_repository_config(self) -> None:
         if self.repository_config_window is not None:
@@ -238,15 +236,54 @@ class SystemDetailWindow(QMainWindow):
     def _system(self) -> SystemProfile:
         return self.service.config.get_system(self.system_name)
 
-    def _yes_no(self, value: bool) -> str:
-        return "是" if value else "否"
+    def _status_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setWordWrap(False)
+        label.setTextFormat(Qt.RichText)
+        label.setFocusPolicy(Qt.NoFocus)
+        return label
 
-    def _local_changes_text(self, status: RepositoryStatus | None) -> str:
+    def _local_status_widget(self, status: RepositoryStatus | None) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(2)
+        label = self._status_label("-")
+
         if status is None:
-            return "-"
-        if not status.exists:
-            return "未clone"
-        return self._yes_no(status.has_local_changes)
+            label.setText("-")
+        elif not status.exists:
+            label.setText("本地仓库不存在")
+        else:
+            commit_text = "有待提交内容" if status.has_local_changes else "无待提交内容"
+            commit_color = "#dc2626" if status.has_local_changes else "#16a34a"
+            push_text = "有待push内容" if status.has_unpushed_commits else "无待push内容"
+            push_color = "#dc2626" if status.has_unpushed_commits else "#16a34a"
+            label.setText(
+                f"分支: {status.branch}; "
+                f'<span style="color: {commit_color};">{commit_text}</span>; '
+                f'<span style="color: {push_color};">{push_text}</span>'
+            )
+
+        layout.addWidget(label)
+        return widget
+
+    def _remote_status_widget(self, status: RepositoryStatus | None) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(2)
+        label = self._status_label("-")
+
+        if status is None or not status.exists:
+            label.setText("-")
+        elif status.has_remote_updates:
+            label.setText('<span style="color: #dc2626;">有新代码</span>')
+        else:
+            label.setText('<span style="color: #16a34a;">无新代码</span>')
+
+        layout.addWidget(label)
+        return widget
 
     def _operation_widget(self, application: Application, local_path: Path) -> QWidget:
         widget = QWidget()

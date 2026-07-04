@@ -7,7 +7,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEventLoop, Qt, QTimer
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QHeaderView, QPushButton
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QHeaderView, QLabel, QPushButton
 
 from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import Application, SystemProfile
@@ -38,7 +38,7 @@ class SystemDetailWindowTests(unittest.TestCase):
             self.assertIs(window.repository_config_window, first_repository_window)
             self.assertIs(window.group_config_window, first_group_window)
 
-    def test_local_changes_column_shows_not_cloned_when_repository_missing(self) -> None:
+    def test_local_status_column_shows_missing_repository_message(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             application = Application(
@@ -61,13 +61,94 @@ class SystemDetailWindowTests(unittest.TestCase):
                 exists=False,
                 branch="-",
                 has_local_changes=False,
+                has_unpushed_commits=False,
                 has_remote_updates=False,
                 message="本地仓库不存在",
             )
 
             window.refresh_table()
 
-            self.assertEqual(window.repository_table.item(0, 3).text(), "未clone")
+            status_widget = window.repository_table.cellWidget(0, 2)
+            self.assertIsNotNone(status_widget)
+            label = status_widget.findChild(QLabel)
+            self.assertIsNotNone(label)
+            self.assertEqual(label.text(), "本地仓库不存在")
+
+    def test_local_status_column_shows_branch_and_colored_commit_push_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            application = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=(application,),
+                )
+            )
+            window = SystemDetailWindow(service, GitService(), "aha")
+            window.status_by_url[application.repository_url] = RepositoryStatus(
+                application=application,
+                local_path=application.resolve_local_path(Path("D:/workspace/aha")),
+                exists=True,
+                branch="master",
+                has_local_changes=True,
+                has_unpushed_commits=False,
+                has_remote_updates=False,
+                message="状态已刷新",
+            )
+
+            window.refresh_table()
+
+            status_widget = window.repository_table.cellWidget(0, 2)
+            self.assertIsNotNone(status_widget)
+            label = status_widget.findChild(QLabel)
+            self.assertIsNotNone(label)
+            self.assertIn("分支: master;", label.text())
+            self.assertIn("有待提交内容", label.text())
+            self.assertIn("无待push内容", label.text())
+            self.assertNotIn("<br>", label.text())
+
+    def test_remote_status_column_shows_colored_remote_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            application = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=(application,),
+                )
+            )
+            window = SystemDetailWindow(service, GitService(), "aha")
+            window.status_by_url[application.repository_url] = RepositoryStatus(
+                application=application,
+                local_path=application.resolve_local_path(Path("D:/workspace/aha")),
+                exists=True,
+                branch="master",
+                has_local_changes=False,
+                has_unpushed_commits=False,
+                has_remote_updates=True,
+                message="状态已刷新",
+            )
+
+            window.refresh_table()
+
+            remote_widget = window.repository_table.cellWidget(0, 3)
+            self.assertIsNotNone(remote_widget)
+            label = remote_widget.findChild(QLabel)
+            self.assertIsNotNone(label)
+            self.assertIn("有新代码", label.text())
+            self.assertIn("#dc2626", label.text())
 
     def test_repository_table_shows_group_first_and_sorts_by_group_then_name(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -103,11 +184,10 @@ class SystemDetailWindowTests(unittest.TestCase):
 
             self.assertEqual(window.repository_table.horizontalHeaderItem(0).text(), "分组")
             self.assertEqual(window.repository_table.horizontalHeaderItem(1).text(), "应用名")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(2).text(), "分支")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(3).text(), "本地改动")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(4).text(), "远端新代码")
-            self.assertEqual(window.repository_table.horizontalHeaderItem(5).text(), "操作")
-            self.assertEqual(window.repository_table.columnCount(), 6)
+            self.assertEqual(window.repository_table.horizontalHeaderItem(2).text(), "本地状态")
+            self.assertEqual(window.repository_table.horizontalHeaderItem(3).text(), "远端状态")
+            self.assertEqual(window.repository_table.horizontalHeaderItem(4).text(), "操作")
+            self.assertEqual(window.repository_table.columnCount(), 5)
             self.assertEqual(window.repository_table.item(0, 0).text(), "endpoint")
             self.assertEqual(window.repository_table.item(0, 1).text(), "a-web")
             self.assertEqual(window.repository_table.item(1, 0).text(), "server")
@@ -142,7 +222,7 @@ class SystemDetailWindowTests(unittest.TestCase):
                 open_terminal_path=terminal_paths.append,
             )
 
-            operation_widget = window.repository_table.cellWidget(0, 5)
+            operation_widget = window.repository_table.cellWidget(0, 4)
             self.assertIsNotNone(operation_widget)
             buttons = operation_widget.findChildren(QPushButton)
 
@@ -182,8 +262,9 @@ class SystemDetailWindowTests(unittest.TestCase):
 
             self.assertEqual(window.repository_table.selectionMode(), QAbstractItemView.NoSelection)
             self.assertEqual(window.repository_table.focusPolicy(), Qt.NoFocus)
-            for column in range(window.repository_table.columnCount() - 1):
+            for column in (0, 1):
                 item = window.repository_table.item(0, column)
+                self.assertIsNotNone(item)
                 self.assertFalse(item.flags() & Qt.ItemIsSelectable)
 
     def test_repository_table_columns_are_user_resizable_with_compact_initial_widths(self) -> None:
@@ -199,10 +280,9 @@ class SystemDetailWindowTests(unittest.TestCase):
             self.assertTrue(header.stretchLastSection())
             self.assertEqual(window.repository_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
             self.assertTrue(window.repository_table.hasMouseTracking())
-            self.assertLessEqual(window.repository_table.columnWidth(2), 120)
-            self.assertLessEqual(window.repository_table.columnWidth(3), 120)
-            self.assertLessEqual(window.repository_table.columnWidth(4), 130)
-            self.assertLessEqual(window.repository_table.columnWidth(5), 285)
+            self.assertLessEqual(window.repository_table.columnWidth(2), 440)
+            self.assertLessEqual(window.repository_table.columnWidth(3), 130)
+            self.assertLessEqual(window.repository_table.columnWidth(4), 285)
 
     def test_repository_table_refresh_button_refreshes_only_current_application(self) -> None:
         refreshed_applications: list[Application] = []
@@ -233,7 +313,7 @@ class SystemDetailWindowTests(unittest.TestCase):
             window = SystemDetailWindow(service, GitService(), "aha")
             window._refresh_application_status = refreshed_applications.append
 
-            operation_widget = window.repository_table.cellWidget(0, 5)
+            operation_widget = window.repository_table.cellWidget(0, 4)
             self.assertIsNotNone(operation_widget)
             buttons = operation_widget.findChildren(QPushButton)
 
@@ -250,6 +330,7 @@ class SystemDetailWindowTests(unittest.TestCase):
                     exists=False,
                     branch="-",
                     has_local_changes=False,
+                    has_unpushed_commits=False,
                     has_remote_updates=False,
                     message="状态已刷新",
                 )
