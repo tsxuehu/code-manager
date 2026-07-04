@@ -32,8 +32,12 @@ class CodeManagerService:
         system = self.config.get_system(system_name)
         yaml_file.write_text(dump_system_to_yaml(system), encoding="utf-8")
 
-    def import_system_from_yaml(self, yaml_file: Path) -> SystemProfile:
-        system = load_system_from_yaml(yaml_file.read_text(encoding="utf-8"))
+    def load_system_from_yaml_file(self, yaml_file: Path) -> SystemProfile:
+        return load_system_from_yaml(yaml_file.read_text(encoding="utf-8"))
+
+    def import_system_from_yaml(self, yaml_file: Path, code_root: Path) -> SystemProfile:
+        system = self.load_system_from_yaml_file(yaml_file)
+        system.code_root = code_root
         self.upsert_system(system)
         return system
 

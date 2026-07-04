@@ -10,7 +10,6 @@ def dump_system_to_yaml(system: SystemProfile) -> str:
     lines = [
         "system:",
         f"  name: {_quote(system.name)}",
-        f"  code_root: {_quote(str(system.code_root))}",
         "groups:",
     ]
     if system.groups:
@@ -99,7 +98,7 @@ def load_system_from_yaml(yaml_text: str) -> SystemProfile:
     name = str(system_data.get("name", "")).strip()
     if not name:
         raise ValueError("系统名称不能为空")
-    code_root = Path(str(system_data.get("code_root", str(Path.home() / "code"))))
+    code_root = Path.home() / "code"
 
     group_items = data["groups"]
     application_items = data["applications"]

@@ -125,11 +125,12 @@ tests/               unittest 测试
 YAML 用来给别人迁移系统配置，包含：
 
 - 系统名
-- 本地代码根目录
 - 分组列表
 - 应用仓库列表
 
-导入 YAML 时走 `CodeManagerService.import_system_from_yaml()`，最终用系统名 upsert 到配置里。
+导出 YAML 时不要包含系统在本机的代码根目录，这个路径属于个人机器配置。
+
+导入 YAML 时先读取系统名、分组和应用列表，再让用户填写当前机器的系统代码根目录，最终用系统名 upsert 到配置里。
 
 ## 编码约定
 

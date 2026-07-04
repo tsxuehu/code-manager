@@ -266,7 +266,14 @@ class MainWindow(QMainWindow):
         if not file_name:
             return
         try:
-            system = self.service.import_system_from_yaml(Path(file_name))
+            imported = self.service.load_system_from_yaml_file(Path(file_name))
+            dialog = SystemDialog(imported)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            system = dialog.system()
+            system.groups = imported.groups
+            system.applications = imported.applications
+            self.service.upsert_system(system)
             self.refresh_table()
             self.status_label.setText(f"系统已导入: {system.name}")
         except (OSError, ValueError) as exc:

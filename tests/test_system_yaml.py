@@ -35,9 +35,11 @@ class SystemYamlTests(unittest.TestCase):
         imported = load_system_from_yaml(yaml_text)
 
         self.assertIn('name: "axo"', yaml_text)
+        self.assertNotIn("code_root", yaml_text)
+        self.assertNotIn("D:/workspace-axo", yaml_text)
         self.assertIn('chinese_name: "服务端"', yaml_text)
         self.assertEqual(imported.name, "axo")
-        self.assertEqual(imported.code_root, Path("D:/workspace-axo"))
+        self.assertEqual(imported.code_root, Path.home() / "code")
         self.assertEqual(imported.groups, system.groups)
         self.assertEqual(imported.applications, system.applications)
 
@@ -46,7 +48,6 @@ class SystemYamlTests(unittest.TestCase):
             load_system_from_yaml(
                 """
 system:
-  code_root: "D:/workspace-axo"
 groups: []
 applications: []
 """

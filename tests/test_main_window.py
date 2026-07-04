@@ -218,10 +218,26 @@ class MainWindowTests(unittest.TestCase):
 
             yaml_text = yaml_file.read_text(encoding="utf-8")
             self.assertIn('name: "aha"', yaml_text)
+            self.assertNotIn("code_root", yaml_text)
+            self.assertNotIn("D:/workspace/aha", yaml_text)
             self.assertIn('english_name: "server"', yaml_text)
             self.assertIn('name: "order-service"', yaml_text)
 
     def test_import_button_loads_system_yaml(self) -> None:
+        class FakeSystemDialog:
+            created_with: SystemProfile | None = None
+
+            def __init__(self, system: SystemProfile | None = None) -> None:
+                self.__class__.created_with = system
+
+            def exec(self) -> int:
+                return QDialog.DialogCode.Accepted
+
+            def system(self) -> SystemProfile:
+                assert self.__class__.created_with is not None
+                imported = self.__class__.created_with
+                return SystemProfile(name=imported.name, code_root=Path("D:/workspace/imported"))
+
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             window = MainWindow(service=service)
@@ -230,7 +246,6 @@ class MainWindowTests(unittest.TestCase):
                 """
 system:
   name: "aha"
-  code_root: "D:/workspace/aha"
 groups:
   - chinese_name: "服务端"
     english_name: "server"
@@ -246,7 +261,7 @@ applications:
             with patch(
                 "code_manager.presentation.main_window.QFileDialog.getOpenFileName",
                 return_value=(str(yaml_file), "YAML"),
-            ):
+            ), patch("code_manager.presentation.main_window.SystemDialog", FakeSystemDialog):
                 import_button = [
                     button for button in window.findChildren(QPushButton) if button.text() == "导入系统"
                 ][0]
@@ -254,6 +269,8 @@ applications:
 
             self.assertEqual(window.system_table.rowCount(), 1)
             imported = service.config.get_system("aha")
+            self.assertEqual(FakeSystemDialog.created_with.name, "aha")
+            self.assertEqual(imported.code_root, Path("D:/workspace/imported"))
             self.assertEqual(imported.groups[0].english_name, "server")
             self.assertEqual(imported.applications[0].name, "order-service")
 
