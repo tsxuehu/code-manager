@@ -1,12 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-import os
-import platform
-import shutil
-import subprocess
 from pathlib import Path
-import shlex
 
 from PySide6.QtCore import Qt, QThreadPool, QUrl
 from PySide6.QtGui import QDesktopServices
@@ -26,10 +21,31 @@ from PySide6.QtWidgets import (
 from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import Application, SystemProfile
 from code_manager.infrastructure.git_service import GitOperationResult, GitService, RepositoryStatus
+from code_manager.presentation.child_window import show_or_raise_window
 from code_manager.presentation.group_config_window import GroupConfigWindow
 from code_manager.presentation.repository_config_window import RepositoryConfigWindow
+from code_manager.presentation.repository_status_view import (
+    build_status_cell,
+    local_status_text,
+    remote_status_text,
+)
 from code_manager.presentation.table_hover import install_row_hover_highlight
+from code_manager.presentation.terminal_launcher import open_terminal_at
 from code_manager.presentation.workers import BatchWorker
+
+COL_GROUP = 0
+COL_APPLICATION = 1
+COL_LOCAL_STATUS = 2
+COL_REMOTE_STATUS = 3
+COL_OPERATIONS = 4
+
+REPOSITORY_TABLE_COLUMN_WIDTHS = {
+    COL_GROUP: 120,
+    COL_APPLICATION: 220,
+    COL_LOCAL_STATUS: 420,
+    COL_REMOTE_STATUS: 115,
+    COL_OPERATIONS: 275,
+}
 
 
 class SystemDetailWindow(QMainWindow):
@@ -53,7 +69,7 @@ class SystemDetailWindow(QMainWindow):
         self.group_config_window: GroupConfigWindow | None = None
 
         self.include_submodules_checkbox = QCheckBox("操作应用于 sub module")
-        self.repository_table = QTableWidget(0, 5)
+        self.repository_table = QTableWidget(0, len(REPOSITORY_TABLE_COLUMN_WIDTHS))
         self.status_label = QLabel("就绪")
 
         self.setWindowTitle(f"系统详情 - {system_name}")
@@ -81,31 +97,18 @@ class SystemDetailWindow(QMainWindow):
         layout.addLayout(button_row)
 
         self.repository_table.setHorizontalHeaderLabels(
-            [
-                "分组",
-                "应用名",
-                "本地状态",
-                "远端状态",
-                "操作",
-            ]
+            ["分组", "应用名", "本地状态", "远端状态", "操作"]
         )
         header = self.repository_table.horizontalHeader()
-        column_widths = {
-            0: 120,
-            1: 220,
-            2: 420,
-            3: 115,
-            4: 275,
-        }
-        for column, width in column_widths.items():
-            header.setSectionResizeMode(column, QHeaderView.Interactive)
+        for column, width in REPOSITORY_TABLE_COLUMN_WIDTHS.items():
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             self.repository_table.setColumnWidth(column, width)
         header.setStretchLastSection(True)
         self.repository_table.verticalHeader().setVisible(False)
-        self.repository_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.repository_table.setSelectionMode(QTableWidget.NoSelection)
-        self.repository_table.setFocusPolicy(Qt.NoFocus)
-        self.repository_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.repository_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.repository_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.repository_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.repository_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         install_row_hover_highlight(self.repository_table)
         layout.addWidget(self.repository_table, 1)
         layout.addWidget(self.status_label)
@@ -113,63 +116,34 @@ class SystemDetailWindow(QMainWindow):
 
     def refresh_table(self) -> None:
         system = self._system()
-        applications = sorted(
-            system.applications,
-            key=lambda application: (application.group_english_name, application.name),
-        )
+        applications = self._sorted_applications(system)
         self.repository_table.setRowCount(len(applications))
         for row, application in enumerate(applications):
-            status = self.status_by_url.get(application.repository_url)
-            local_path = application.resolve_local_path(system.code_root)
-            values = [
-                application.group_english_name,
-                application.name,
-            ]
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
-                self.repository_table.setItem(row, column, item)
-            self.repository_table.setCellWidget(row, 2, self._local_status_widget(status))
-            self.repository_table.setCellWidget(row, 3, self._remote_status_widget(status))
-            self.repository_table.setCellWidget(row, 4, self._operation_widget(application, local_path))
+            self._render_repository_row(row, application, system.code_root)
 
     def open_repository_config(self) -> None:
-        if self.repository_config_window is not None:
-            self._activate_window(self.repository_config_window)
-            return
-        window = RepositoryConfigWindow(
-            self.service,
-            self.system_name,
-            on_changed=self._handle_repository_config_changed,
+        self.repository_config_window = show_or_raise_window(
+            self.repository_config_window,
+            lambda: RepositoryConfigWindow(
+                self.service,
+                self.system_name,
+                on_changed=self._handle_repository_config_changed,
+            ),
+            lambda: setattr(self, "repository_config_window", None),
         )
-        window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        window.destroyed.connect(lambda _object=None: setattr(self, "repository_config_window", None))
-        window.resize(1100, 720)
-        window.show()
-        self.repository_config_window = window
+        self.repository_config_window.resize(1100, 720)
 
     def open_group_config(self) -> None:
-        if self.group_config_window is not None:
-            self._activate_window(self.group_config_window)
-            return
-        window = GroupConfigWindow(
-            self.service,
-            self.system_name,
-            on_changed=self._handle_repository_config_changed,
+        self.group_config_window = show_or_raise_window(
+            self.group_config_window,
+            lambda: GroupConfigWindow(
+                self.service,
+                self.system_name,
+                on_changed=self._handle_repository_config_changed,
+            ),
+            lambda: setattr(self, "group_config_window", None),
         )
-        window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        window.destroyed.connect(lambda _object=None: setattr(self, "group_config_window", None))
-        window.resize(720, 560)
-        window.show()
-        self.group_config_window = window
-
-    def _activate_window(self, window: QMainWindow) -> None:
-        if window.isMinimized():
-            window.showNormal()
-        else:
-            window.show()
-        window.raise_()
-        window.activateWindow()
+        self.group_config_window.resize(720, 560)
 
     def clone_all(self) -> None:
         system = self._system()
@@ -224,7 +198,11 @@ class SystemDetailWindow(QMainWindow):
     def _handle_batch_result(self, result: object) -> None:
         if isinstance(result, RepositoryStatus):
             self.status_by_url[result.application.repository_url] = result
-            self.refresh_table()
+            row = self._find_application_row(result.application.repository_url)
+            if row >= 0:
+                self._update_repository_status_cells(row, result.application)
+            else:
+                self.refresh_table()
             return
         if isinstance(result, GitOperationResult):
             self.status_label.setText(f"{result.application.name}: {result.message}")
@@ -236,59 +214,52 @@ class SystemDetailWindow(QMainWindow):
     def _system(self) -> SystemProfile:
         return self.service.config.get_system(self.system_name)
 
-    def _status_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        label.setWordWrap(False)
-        label.setTextFormat(Qt.RichText)
-        label.setFocusPolicy(Qt.NoFocus)
-        return label
+    def _sorted_applications(self, system: SystemProfile) -> list[Application]:
+        return sorted(
+            system.applications,
+            key=lambda application: (application.group_english_name, application.name),
+        )
 
-    def _local_status_widget(self, status: RepositoryStatus | None) -> QWidget:
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(2)
-        label = self._status_label("-")
+    def _find_application_row(self, repository_url: str) -> int:
+        system = self._system()
+        for row, application in enumerate(self._sorted_applications(system)):
+            if application.repository_url == repository_url:
+                return row
+        return -1
 
-        if status is None:
-            label.setText("-")
-        elif not status.exists:
-            label.setText("本地仓库不存在")
-        else:
-            commit_text = "有待提交内容" if status.has_local_changes else "无待提交内容"
-            commit_color = "#dc2626" if status.has_local_changes else "#16a34a"
-            push_text = "有待push内容" if status.has_unpushed_commits else "无待push内容"
-            push_color = "#dc2626" if status.has_unpushed_commits else "#16a34a"
-            label.setText(
-                f"分支: {status.branch}; "
-                f'<span style="color: {commit_color};">{commit_text}</span>; '
-                f'<span style="color: {push_color};">{push_text}</span>'
-            )
+    def _render_repository_row(self, row: int, application: Application, code_root: Path) -> None:
+        status = self.status_by_url.get(application.repository_url)
+        local_path = application.resolve_local_path(code_root)
 
-        layout.addWidget(label)
-        return widget
+        for column, value in (
+            (COL_GROUP, application.group_english_name),
+            (COL_APPLICATION, application.name),
+        ):
+            item = QTableWidgetItem(value)
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            self.repository_table.setItem(row, column, item)
 
-    def _remote_status_widget(self, status: RepositoryStatus | None) -> QWidget:
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(2)
-        label = self._status_label("-")
+        self._update_repository_status_cells(row, application)
+        self.repository_table.setCellWidget(row, COL_OPERATIONS, self._operation_widget(application, local_path))
 
-        if status is None or not status.exists:
-            label.setText("-")
-        elif status.has_remote_updates:
-            label.setText('<span style="color: #dc2626;">有新代码</span>')
-        else:
-            label.setText('<span style="color: #16a34a;">无新代码</span>')
-
-        layout.addWidget(label)
-        return widget
+    def _update_repository_status_cells(self, row: int, application: Application) -> None:
+        status = self.status_by_url.get(application.repository_url)
+        self.repository_table.setCellWidget(
+            row,
+            COL_LOCAL_STATUS,
+            build_status_cell(local_status_text(status)),
+        )
+        self.repository_table.setCellWidget(
+            row,
+            COL_REMOTE_STATUS,
+            build_status_cell(remote_status_text(status)),
+        )
 
     def _operation_widget(self, application: Application, local_path: Path) -> QWidget:
         widget = QWidget()
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(4, 2, 4, 2)
+
         refresh_button = QPushButton("刷新")
         refresh_button.setFixedWidth(56)
         refresh_button.clicked.connect(
@@ -304,6 +275,7 @@ class SystemDetailWindow(QMainWindow):
         terminal_button.clicked.connect(
             lambda _checked=False: self._handle_open_terminal_path(application, local_path)
         )
+
         layout.addWidget(refresh_button)
         layout.addWidget(open_directory_button)
         layout.addWidget(terminal_button)
@@ -340,45 +312,4 @@ class SystemDetailWindow(QMainWindow):
         self.status_label.setText(f"在终端中打开: {application.name}")
 
     def _open_terminal_path(self, local_path: Path) -> bool:
-        local_path.mkdir(parents=True, exist_ok=True)
-        system_name = platform.system()
-        if system_name == "Windows":
-            creation_flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-            subprocess.Popen(["powershell.exe", "-NoExit"], cwd=local_path, creationflags=creation_flags)
-            return True
-        if system_name == "Darwin":
-            return self._open_terminal_on_macos(local_path)
-        return self._open_terminal_on_linux(local_path)
-
-    def _open_terminal_on_linux(self, local_path: Path) -> bool:
-        candidates = [
-            os.environ.get("TERMINAL"),
-            "x-terminal-emulator",
-            "gnome-terminal",
-            "konsole",
-            "xfce4-terminal",
-            "xterm",
-        ]
-        for candidate in candidates:
-            if candidate and shutil.which(candidate):
-                subprocess.Popen([candidate], cwd=local_path)
-                return True
-        return False
-
-    def _open_terminal_on_macos(self, local_path: Path) -> bool:
-        if Path("/Applications/iTerm.app").exists() and shutil.which("osascript"):
-            quoted_path = shlex.quote(str(local_path))
-            script = (
-                'tell application "iTerm"\n'
-                "  create window with default profile\n"
-                "  tell current session of current window\n"
-                f'    write text "cd {quoted_path}"\n'
-                "  end tell\n"
-                "end tell"
-            )
-            subprocess.Popen(["osascript", "-e", script])
-            return True
-        if shutil.which("open"):
-            subprocess.Popen(["open", "-a", "Terminal", str(local_path)])
-            return True
-        return False
+        return open_terminal_at(local_path)

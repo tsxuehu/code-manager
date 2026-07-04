@@ -29,7 +29,7 @@ from code_manager.presentation.dialogs import SystemDialog
 from code_manager.presentation.table_hover import install_row_hover_highlight
 
 if TYPE_CHECKING:
-    from code_manager.presentation.app_controller import ApplicationController
+    from code_manager.presentation.window_manager import WindowManager
 
 SYSTEM_NAME_COLUMN_WIDTH = 170
 SYSTEM_TABLE_ROW_HEIGHT = 36
@@ -39,15 +39,15 @@ SYSTEM_OPERATION_COLUMN_WIDTH = 300
 class MainWindow(QMainWindow):
     def __init__(
         self,
-        service: CodeManagerService | None = None,
-        git_service: GitService | None = None,
-        controller: ApplicationController | None = None,
+        service: CodeManagerService,
+        git_service: GitService,
+        window_manager: WindowManager,
     ) -> None:
         super().__init__()
         self.setWindowTitle("系统管理")
-        self.service = service or CodeManagerService()
-        self.git_service = git_service or GitService()
-        self.controller = controller
+        self.service = service
+        self.git_service = git_service
+        self.window_manager = window_manager
         self.editing_cell: tuple[str, int] | None = None
 
         self.system_table = QTableWidget(0, 3)
@@ -199,24 +199,14 @@ class MainWindow(QMainWindow):
         return cell
 
     def open_system_detail(self, system_name: str | None = None) -> None:
-        if self.controller is not None:
-            if self.controller.open_system_detail(system_name, parent=self):
-                self.close()
-            return
+        if self.window_manager.open_system_detail(system_name, parent=self):
+            self.close()
 
-        system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
-        if not system:
-            QMessageBox.information(
-                self,
-                "请先选择系统",
-                "请先选择一个系统。",
-            )
-            return
-        QMessageBox.information(
-            self,
-            "无法打开系统",
-            "请通过应用托盘启动系统详情窗口。",
-        )
+    def selected_system(self) -> SystemProfile | None:
+        row = self.system_table.currentRow()
+        if row < 0 or row >= len(self.service.config.systems):
+            return None
+        return self.service.config.systems[row]
 
     def add_system(self) -> None:
         dialog = SystemDialog()
@@ -230,7 +220,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "保存失败", str(exc))
 
     def edit_system(self, system_name: str | None = None) -> None:
-        system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
+        system = self.service.config.get_system(system_name) if system_name else self.selected_system()
         if not system:
             return
         dialog = SystemDialog(system)
@@ -273,7 +263,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "导入失败", str(exc))
 
     def export_system_to_yaml(self, system_name: str | None = None) -> None:
-        system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
+        system = self.service.config.get_system(system_name) if system_name else self.selected_system()
         if not system:
             return
         file_name, _selected_filter = QFileDialog.getSaveFileName(
@@ -309,7 +299,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"已取消编辑{self._cell_label(column)}: {system_name}")
 
     def confirm_cell_edit(self, system_name: str | None = None, column: int | None = None) -> None:
-        system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
+        system = self.service.config.get_system(system_name) if system_name else self.selected_system()
         if not system or column not in (0, 1):
             return
         row = self._find_system_row(system.name)
@@ -338,7 +328,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "保存失败", str(exc))
 
     def delete_system(self, system_name: str | None = None) -> None:
-        system = self.service.config.get_system(system_name) if system_name else self._selected_system_or_none()
+        system = self.service.config.get_system(system_name) if system_name else self.selected_system()
         if not system:
             return
         confirmed = (
@@ -353,12 +343,6 @@ class MainWindow(QMainWindow):
         if confirmed:
             self.service.delete_system(system.name)
             self.refresh_table()
-
-    def _selected_system_or_none(self) -> SystemProfile | None:
-        row = self.system_table.currentRow()
-        if row < 0 or row >= len(self.service.config.systems):
-            return None
-        return self.service.config.systems[row]
 
     def _find_system_row(self, system_name: str) -> int:
         normalized = system_name.lower()

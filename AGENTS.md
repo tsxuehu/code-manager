@@ -75,6 +75,10 @@ tests/               unittest 测试
 - `infrastructure/config_store.py`：`~/.code-manager/config.json` 读写
 - `infrastructure/git_service.py`：Git 操作
 - `infrastructure/system_yaml.py`：系统配置 YAML 导入导出
+- `presentation/app_controller.py`：应用入口编排（托盘、单实例、窗口调度）
+- `presentation/window_manager.py`：系统列表与详情窗口生命周期
+- `presentation/tray_manager.py`：系统托盘菜单
+- `presentation/single_instance.py`：单实例启动控制
 - `presentation/main_window.py`：系统管理窗口
 - `presentation/system_detail_window.py`：系统详情窗口
 - `presentation/repository_config_window.py`：仓库配置窗口
@@ -85,7 +89,7 @@ tests/               unittest 测试
 用户对 UI 细节很敏感，改界面时务必遵守：
 
 - 系统管理窗口显示系统列表；每行操作按钮放在该行后面。
-- 系统详情窗口显示仓库状态；不要显示仓库地址和本地路径，只显示分组、应用名、分支、本地改动、远端新代码、操作。
+- 系统详情窗口显示仓库状态；不要显示仓库地址和本地路径，只显示分组、应用名、本地状态、远端状态、操作。
 - 仓库配置窗口只配置应用；分组配置窗口只配置分组。
 - 同一个系统只能打开一个详情窗口。
 - 同一个系统只能打开一个仓库配置窗口、一个分组配置窗口。
@@ -113,7 +117,7 @@ tests/               unittest 测试
 - pull 不含 submodule：使用 `-c submodule.recurse=false` 和 `--recurse-submodules=no`
 - pull 含 submodule：pull 后执行 `git submodule update --init --recursive`
 
-仓库未 clone 到本地时，系统详情里的“本地改动”显示 `未clone`。
+仓库未 clone 到本地时，系统详情里的“本地状态”显示 `本地仓库不存在`。
 
 ## 系统 YAML 导入导出
 

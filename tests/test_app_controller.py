@@ -81,21 +81,14 @@ class ApplicationControllerTests(unittest.TestCase):
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             controller = ApplicationController(service=service, git_service=GitService())
 
-            with patch.object(
-                ApplicationController,
-                "_setup_tray",
-                wraps=controller._setup_tray,
+            with patch(
+                "code_manager.presentation.tray_manager.QSystemTrayIcon.isSystemTrayAvailable",
+                return_value=True,
             ):
-                with patch(
-                    "code_manager.presentation.app_controller.QSystemTrayIcon.isSystemTrayAvailable",
-                    return_value=True,
-                ):
-                    controller._setup_tray()
+                controller.tray.setup()
 
-            tray_icon = controller._tray_icon
-            self.assertIsNotNone(tray_icon)
-            controller._populate_tray_menu()
-            menu = controller._tray_menu
+            controller.tray.populate_menu()
+            menu = controller.tray._menu
             self.assertIsNotNone(menu)
             action_texts = [action.text() for action in menu.actions()]
             self.assertEqual(action_texts, ["系统列表", "", "暂无系统", "", "关闭所有窗口", "", "退出"])
@@ -108,14 +101,13 @@ class ApplicationControllerTests(unittest.TestCase):
             controller = ApplicationController(service=service, git_service=GitService())
 
             with patch(
-                "code_manager.presentation.app_controller.QSystemTrayIcon.isSystemTrayAvailable",
+                "code_manager.presentation.tray_manager.QSystemTrayIcon.isSystemTrayAvailable",
                 return_value=True,
             ):
-                controller._setup_tray()
+                controller.tray.setup()
 
-            menu = controller._tray_menu
-            assert menu is not None
-            self.assertEqual(controller._tray_system_action_names(), ["axo", "demo"])
+            controller.tray.populate_menu()
+            self.assertEqual(controller.tray.system_action_names(), ["axo", "demo"])
 
 
 if __name__ == "__main__":

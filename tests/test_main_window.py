@@ -17,6 +17,13 @@ from code_manager.presentation.app_controller import ApplicationController
 from code_manager.presentation.main_window import MainWindow
 
 
+def _create_main_window(service: CodeManagerService) -> MainWindow:
+    controller = ApplicationController(service=service, git_service=GitService())
+    controller.show_system_list()
+    assert controller.main_window is not None
+    return controller.main_window
+
+
 class MainWindowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -25,7 +32,7 @@ class MainWindowTests(unittest.TestCase):
     def test_refresh_table_shows_system_after_add(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
             window.refresh_table()
@@ -44,7 +51,7 @@ class MainWindowTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             with patch("code_manager.presentation.main_window.SystemDialog", FakeSystemDialog):
                 window.add_system()
@@ -56,7 +63,7 @@ class MainWindowTests(unittest.TestCase):
     def test_system_management_window_is_compact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             self.assertLessEqual(window.width(), 760)
             self.assertLessEqual(window.height(), 460)
@@ -65,7 +72,7 @@ class MainWindowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             operation_widget = window.system_table.cellWidget(0, 2)
             buttons = operation_widget.findChildren(QPushButton)
@@ -77,7 +84,7 @@ class MainWindowTests(unittest.TestCase):
     def test_system_management_has_import_button(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             buttons = [button.text() for button in window.findChildren(QPushButton)]
 
@@ -88,7 +95,7 @@ class MainWindowTests(unittest.TestCase):
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
             service.upsert_system(SystemProfile(name="ops", code_root=Path("D:/workspace/ops")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             self.assertGreaterEqual(window.system_table.columnWidth(0), 160)
             self.assertEqual(window.system_table.rowHeight(0), 36)
@@ -97,7 +104,7 @@ class MainWindowTests(unittest.TestCase):
     def test_system_table_columns_are_user_resizable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
             header = window.system_table.horizontalHeader()
 
             for column in range(window.system_table.columnCount()):
@@ -110,7 +117,7 @@ class MainWindowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             window.system_table.cellEntered.emit(0, 0)
 
@@ -122,7 +129,7 @@ class MainWindowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             window.system_table.cellDoubleClicked.emit(0, 1)
 
@@ -132,7 +139,7 @@ class MainWindowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             window.system_table.cellDoubleClicked.emit(0, 0)
 
@@ -152,7 +159,7 @@ class MainWindowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
             operation_width = window.system_table.columnWidth(2)
 
             window.system_table.cellDoubleClicked.emit(0, 1)
@@ -178,7 +185,7 @@ class MainWindowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             with patch("code_manager.presentation.main_window.SystemDialog", FakeSystemDialog):
                 edit_button = window.system_table.cellWidget(0, 2).findChildren(QPushButton)[1]
@@ -208,7 +215,7 @@ class MainWindowTests(unittest.TestCase):
                 ],
             )
             service.upsert_system(system)
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
             yaml_file = Path(temp_dir) / "aha.yaml"
 
             with patch(
@@ -242,7 +249,7 @@ class MainWindowTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
             yaml_file = Path(temp_dir) / "aha.yaml"
             yaml_file.write_text(
                 """
@@ -280,7 +287,7 @@ applications:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             window.system_table.cellDoubleClicked.emit(0, 0)
             editor = window.system_table.cellWidget(0, 0)
@@ -300,7 +307,7 @@ applications:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             window.system_table.cellDoubleClicked.emit(0, 1)
             editor = window.system_table.cellWidget(0, 1)
@@ -320,7 +327,7 @@ applications:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
 
             name_item = window.system_table.item(0, 0)
             path_item = window.system_table.item(0, 1)
@@ -336,7 +343,7 @@ applications:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
             service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
-            window = MainWindow(service=service)
+            window = _create_main_window(service)
             window.system_table.setCurrentCell(0, 0)
 
             window.system_table.cellDoubleClicked.emit(0, 0)
