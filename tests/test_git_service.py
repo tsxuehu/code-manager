@@ -60,6 +60,23 @@ class GitServiceTests(unittest.TestCase):
                 ],
             )
 
+    def test_status_marks_repository_as_missing_when_not_cloned(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = GitService()
+            app = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+
+            status = service.status(app, Path(temp_dir))
+
+            self.assertFalse(status.exists)
+            self.assertEqual(status.branch, "-")
+            self.assertFalse(status.has_local_changes)
+            self.assertEqual(status.message, "本地仓库不存在")
+
 
 if __name__ == "__main__":
     unittest.main()

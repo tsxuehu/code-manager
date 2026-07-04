@@ -82,6 +82,7 @@ class GroupConfigWindow(QMainWindow):
             self.group_table.removeCellWidget(row, 0)
             self.group_table.removeCellWidget(row, 1)
             if editing_column == 0:
+                self.group_table.takeItem(row, 0)
                 self.group_table.setCellWidget(
                     row,
                     0,
@@ -90,6 +91,7 @@ class GroupConfigWindow(QMainWindow):
             else:
                 self.group_table.setItem(row, 0, QTableWidgetItem(group.chinese_name))
             if editing_column == 1:
+                self.group_table.takeItem(row, 1)
                 self.group_table.setCellWidget(
                     row,
                     1,

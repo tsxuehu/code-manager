@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
-from PySide6.QtCore import Qt, QThreadPool
+from PySide6.QtCore import Qt, QThreadPool, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
@@ -29,17 +31,19 @@ class SystemDetailWindow(QMainWindow):
         service: CodeManagerService,
         git_service: GitService,
         system_name: str,
+        open_local_path: Callable[[Path], object] | None = None,
     ) -> None:
         super().__init__()
         self.service = service
         self.git_service = git_service
         self.system_name = system_name
+        self.open_local_path = open_local_path or self._open_local_path
         self.thread_pool = QThreadPool.globalInstance()
         self.status_by_url: dict[str, RepositoryStatus] = {}
         self.repository_config_window: RepositoryConfigWindow | None = None
         self.group_config_window: GroupConfigWindow | None = None
 
-        self.repository_table = QTableWidget(0, 8)
+        self.repository_table = QTableWidget(0, 7)
         self.status_label = QLabel("就绪")
 
         self.setWindowTitle(f"系统详情 - {system_name}")
@@ -67,18 +71,20 @@ class SystemDetailWindow(QMainWindow):
 
         self.repository_table.setHorizontalHeaderLabels(
             [
-                "应用名",
                 "分组",
-                "本地目录",
-                "仓库地址",
+                "应用名",
                 "本地路径",
                 "分支",
                 "本地改动",
                 "远端新代码",
+                "操作",
             ]
         )
         self.repository_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.repository_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.repository_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
+        self.repository_table.setColumnWidth(6, 150)
+        self.repository_table.setSelectionMode(QTableWidget.NoSelection)
+        self.repository_table.setFocusPolicy(Qt.NoFocus)
         self.repository_table.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.repository_table, 1)
         layout.addWidget(self.status_label)
@@ -86,21 +92,27 @@ class SystemDetailWindow(QMainWindow):
 
     def refresh_table(self) -> None:
         system = self._system()
-        self.repository_table.setRowCount(len(system.applications))
-        for row, application in enumerate(system.applications):
+        applications = sorted(
+            system.applications,
+            key=lambda application: (application.group_english_name, application.name),
+        )
+        self.repository_table.setRowCount(len(applications))
+        for row, application in enumerate(applications):
             status = self.status_by_url.get(application.repository_url)
+            local_path = application.resolve_local_path(system.code_root)
             values = [
-                application.name,
                 application.group_english_name,
-                application.local_dir_name,
-                application.repository_url,
-                str(application.resolve_local_path(system.code_root)),
+                application.name,
+                str(local_path),
                 status.branch if status else "-",
-                self._yes_no(status.has_local_changes) if status else "-",
+                self._local_changes_text(status),
                 self._yes_no(status.has_remote_updates) if status else "-",
             ]
             for column, value in enumerate(values):
-                self.repository_table.setItem(row, column, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
+                self.repository_table.setItem(row, column, item)
+            self.repository_table.setCellWidget(row, 6, self._operation_widget(application, local_path))
 
     def open_repository_config(self) -> None:
         if self.repository_config_window is not None:
@@ -193,3 +205,26 @@ class SystemDetailWindow(QMainWindow):
 
     def _yes_no(self, value: bool) -> str:
         return "是" if value else "否"
+
+    def _local_changes_text(self, status: RepositoryStatus | None) -> str:
+        if status is None:
+            return "-"
+        if not status.exists:
+            return "未clone"
+        return self._yes_no(status.has_local_changes)
+
+    def _operation_widget(self, application: Application, local_path: Path) -> QWidget:
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(4, 2, 4, 2)
+        button = QPushButton("打本目录")
+        button.clicked.connect(lambda _checked=False: self._handle_open_local_path(application, local_path))
+        layout.addWidget(button)
+        return widget
+
+    def _handle_open_local_path(self, application: Application, local_path: Path) -> None:
+        self.open_local_path(local_path)
+        self.status_label.setText(f"打开本地目录: {application.name}")
+
+    def _open_local_path(self, local_path: Path) -> bool:
+        return QDesktopServices.openUrl(QUrl.fromLocalFile(str(local_path)))

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -67,12 +68,23 @@ class GroupDialog(QDialog):
 
 
 class ApplicationDialog(QDialog):
-    def __init__(self, application: Application | None = None) -> None:
+    def __init__(
+        self,
+        application: Application | None = None,
+        group_options: list[str] | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("应用配置")
         self.name_input = QLineEdit(application.name if application else "")
         self.repository_url_input = QLineEdit(application.repository_url if application else "")
-        self.group_input = QLineEdit(application.group_english_name if application else "")
+        self.group_input = QComboBox()
+        self.group_input.setEditable(False)
+        groups = group_options or []
+        self.group_input.addItems(groups)
+        if application and application.group_english_name:
+            if application.group_english_name not in groups:
+                self.group_input.addItem(application.group_english_name)
+            self.group_input.setCurrentText(application.group_english_name)
         self.local_dir_input = QLineEdit(application.local_dir_name if application else "")
 
         form = QFormLayout()
@@ -93,7 +105,7 @@ class ApplicationDialog(QDialog):
         return Application(
             name=self.name_input.text().strip(),
             repository_url=self.repository_url_input.text().strip(),
-            group_english_name=self.group_input.text().strip(),
+            group_english_name=self.group_input.currentText().strip(),
             local_dir_name=self.local_dir_input.text().strip(),
         )
 

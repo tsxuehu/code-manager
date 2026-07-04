@@ -95,6 +95,7 @@ class MainWindow(QMainWindow):
             self.system_table.removeCellWidget(row, 0)
             self.system_table.removeCellWidget(row, 1)
             if editing_column == 0:
+                self.system_table.takeItem(row, 0)
                 self.system_table.setCellWidget(
                     row,
                     0,
@@ -104,6 +105,7 @@ class MainWindow(QMainWindow):
                 self.system_table.setItem(row, 0, self._read_only_item(system.name))
 
             if editing_column == 1:
+                self.system_table.takeItem(row, 1)
                 self.system_table.setCellWidget(
                     row,
                     1,
