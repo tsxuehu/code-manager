@@ -26,6 +26,7 @@ from code_manager.domain.models import SystemProfile
 from code_manager.infrastructure.git_service import GitService
 from code_manager.presentation.dialogs import SystemDialog
 from code_manager.presentation.system_detail_window import SystemDetailWindow
+from code_manager.presentation.table_hover import install_row_hover_highlight
 
 SYSTEM_NAME_COLUMN_WIDTH = 170
 SYSTEM_TABLE_ROW_HEIGHT = 36
@@ -84,6 +85,7 @@ class MainWindow(QMainWindow):
         self.system_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.system_table.setFocusPolicy(Qt.NoFocus)
         self.system_table.setStyleSheet("QTableWidget::item:focus { outline: none; }")
+        install_row_hover_highlight(self.system_table)
         self.system_table.cellDoubleClicked.connect(self.start_cell_edit)
         layout.addWidget(self.system_table, 1)
         layout.addWidget(self.status_label)

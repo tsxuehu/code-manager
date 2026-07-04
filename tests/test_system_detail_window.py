@@ -198,6 +198,7 @@ class SystemDetailWindowTests(unittest.TestCase):
                 self.assertEqual(header.sectionResizeMode(column), QHeaderView.Interactive)
             self.assertTrue(header.stretchLastSection())
             self.assertEqual(window.repository_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+            self.assertTrue(window.repository_table.hasMouseTracking())
             self.assertLessEqual(window.repository_table.columnWidth(2), 120)
             self.assertLessEqual(window.repository_table.columnWidth(3), 120)
             self.assertLessEqual(window.repository_table.columnWidth(4), 130)

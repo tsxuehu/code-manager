@@ -102,6 +102,19 @@ class MainWindowTests(unittest.TestCase):
                 self.assertEqual(header.sectionResizeMode(column), QHeaderView.Interactive)
             self.assertTrue(header.stretchLastSection())
             self.assertEqual(window.system_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+            self.assertTrue(window.system_table.hasMouseTracking())
+
+    def test_system_table_highlights_row_under_mouse(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            service.upsert_system(SystemProfile(name="aha", code_root=Path("D:/workspace/aha")))
+            window = MainWindow(service=service)
+
+            window.system_table.cellEntered.emit(0, 0)
+
+            self.assertEqual(window.system_table.property("hovered_row"), 0)
+            self.assertEqual(window.system_table.item(0, 0).background().color().name(), "#eaf4ff")
+            self.assertIn("#eaf4ff", window.system_table.cellWidget(0, 2).styleSheet())
 
     def test_cell_editor_keeps_row_height_fixed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

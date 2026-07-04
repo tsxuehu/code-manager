@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import Application, Group, SystemProfile
 from code_manager.presentation.dialogs import GroupDialog
+from code_manager.presentation.table_hover import install_row_hover_highlight
 
 GROUP_TABLE_ROW_HEIGHT = 36
 GROUP_OPERATION_COLUMN_WIDTH = 220
@@ -71,6 +72,7 @@ class GroupConfigWindow(QMainWindow):
         self.group_table.setSelectionMode(QTableWidget.NoSelection)
         self.group_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.group_table.setFocusPolicy(Qt.NoFocus)
+        install_row_hover_highlight(self.group_table)
         self.group_table.cellDoubleClicked.connect(self.start_cell_edit)
         layout.addWidget(self.group_table, 1)
         layout.addWidget(self.status_label)

@@ -28,6 +28,7 @@ from code_manager.domain.models import Application, SystemProfile
 from code_manager.infrastructure.git_service import GitOperationResult, GitService, RepositoryStatus
 from code_manager.presentation.group_config_window import GroupConfigWindow
 from code_manager.presentation.repository_config_window import RepositoryConfigWindow
+from code_manager.presentation.table_hover import install_row_hover_highlight
 from code_manager.presentation.workers import BatchWorker
 
 
@@ -106,6 +107,7 @@ class SystemDetailWindow(QMainWindow):
         self.repository_table.setSelectionMode(QTableWidget.NoSelection)
         self.repository_table.setFocusPolicy(Qt.NoFocus)
         self.repository_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        install_row_hover_highlight(self.repository_table)
         layout.addWidget(self.repository_table, 1)
         layout.addWidget(self.status_label)
         self.setCentralWidget(root)

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from code_manager.application.config_service import CodeManagerService
 from code_manager.domain.models import Application, SystemProfile
 from code_manager.presentation.dialogs import ApplicationDialog, ImportRepositoriesDialog
+from code_manager.presentation.table_hover import install_row_hover_highlight
 
 APPLICATION_TABLE_ROW_HEIGHT = 36
 APPLICATION_OPERATION_COLUMN_WIDTH = 200
@@ -92,6 +93,7 @@ class RepositoryConfigWindow(QMainWindow):
         self.application_table.setSelectionMode(QTableWidget.NoSelection)
         self.application_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.application_table.setFocusPolicy(Qt.NoFocus)
+        install_row_hover_highlight(self.application_table)
         self.application_table.cellDoubleClicked.connect(self.start_cell_edit)
         layout.addWidget(self.application_table)
         return panel

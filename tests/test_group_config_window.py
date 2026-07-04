@@ -44,6 +44,7 @@ class GroupConfigWindowTests(unittest.TestCase):
                 self.assertEqual(header.sectionResizeMode(column), QHeaderView.Interactive)
             self.assertTrue(header.stretchLastSection())
             self.assertEqual(window.group_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+            self.assertTrue(window.group_table.hasMouseTracking())
 
     def test_double_clicking_group_cell_edits_only_that_cell(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

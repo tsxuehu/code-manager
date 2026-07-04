@@ -35,6 +35,7 @@ class RepositoryConfigWindowTests(unittest.TestCase):
                 self.assertEqual(header.sectionResizeMode(column), QHeaderView.Interactive)
             self.assertTrue(header.stretchLastSection())
             self.assertEqual(window.application_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+            self.assertTrue(window.application_table.hasMouseTracking())
 
     def test_double_clicking_application_text_cell_edits_only_that_cell(self) -> None:
         with self._window() as window:
