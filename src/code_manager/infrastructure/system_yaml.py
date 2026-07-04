@@ -41,7 +41,7 @@ def load_system_from_yaml(yaml_text: str) -> SystemProfile:
     if not isinstance(data, dict):
         raise ValueError("YAML 根节点必须是对象")
 
-    system_data = data.get("system", {})
+    system_data = data.get("system") or {}
     if not isinstance(system_data, dict):
         raise ValueError("系统配置格式错误")
     name = str(system_data.get("name", "")).strip()
@@ -72,11 +72,6 @@ def load_system_from_yaml(yaml_text: str) -> SystemProfile:
             for item in application_items
         ],
     )
-
-
-def _quote(value: str) -> str:
-    return str(value)
-
 
 def _list_items(value: object, message: str) -> list[Any]:
     if value is None:

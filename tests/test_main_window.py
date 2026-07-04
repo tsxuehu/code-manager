@@ -217,11 +217,11 @@ class MainWindowTests(unittest.TestCase):
                 export_button.click()
 
             yaml_text = yaml_file.read_text(encoding="utf-8")
-            self.assertIn('name: "aha"', yaml_text)
+            self.assertIn("name: aha", yaml_text)
             self.assertNotIn("code_root", yaml_text)
             self.assertNotIn("D:/workspace/aha", yaml_text)
-            self.assertIn('english_name: "server"', yaml_text)
-            self.assertIn('name: "order-service"', yaml_text)
+            self.assertIn("english_name: server", yaml_text)
+            self.assertIn("name: order-service", yaml_text)
 
     def test_import_button_loads_system_yaml(self) -> None:
         class FakeSystemDialog:
