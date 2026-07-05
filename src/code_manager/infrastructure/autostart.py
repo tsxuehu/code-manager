@@ -9,17 +9,23 @@ from pathlib import Path
 AUTOSTART_DESKTOP_NAME = "code-manager.desktop"
 AUTOSTART_PLIST_NAME = "com.code-manager.app.plist"
 WINDOWS_RUN_VALUE_NAME = "CodeManager"
+AUTOSTART_ARG = "--autostart"
+LINUX_AUTOSTART_DELAY_SECONDS = 5
 
 
 def launch_command() -> list[str]:
-    if getattr(sys, "frozen", False):
-        return [str(Path(sys.executable).resolve())]
-
     installed = shutil.which("code-manager")
     if installed:
         return [installed]
 
+    if getattr(sys, "frozen", False):
+        return [str(Path(sys.executable).resolve())]
+
     return [sys.executable, "-m", "code_manager"]
+
+
+def autostart_exec_command() -> list[str]:
+    return [*launch_command(), AUTOSTART_ARG]
 
 
 class AutostartService:
@@ -31,7 +37,7 @@ class AutostartService:
         return _linux_desktop_path().is_file()
 
     def enable(self) -> None:
-        command = launch_command()
+        command = autostart_exec_command()
         if sys.platform == "win32":
             _windows_enable(command)
             return
@@ -67,11 +73,15 @@ def _linux_enable(command: list[str]) -> None:
             [
                 "[Desktop Entry]",
                 "Type=Application",
+                "Version=1.0",
                 "Name=代码管理器",
                 "Comment=代码仓库管理",
                 f"Exec={exec_line}",
                 "Terminal=false",
+                "StartupNotify=false",
+                "Hidden=false",
                 "X-GNOME-Autostart-enabled=true",
+                f"X-GNOME-Autostart-Delay={LINUX_AUTOSTART_DELAY_SECONDS}",
                 "",
             ]
         ),

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from code_manager.application.config_service import CodeManagerService
 from code_manager.infrastructure.git_service import GitService
 from code_manager.presentation.tray_manager import TrayManager
 from code_manager.presentation.window_manager import WindowManager
+
+
+AUTOSTART_TRAY_DELAY_MS = 3000
 
 
 class ApplicationController:
@@ -33,8 +37,17 @@ class ApplicationController:
     def detail_windows(self):
         return self.windows.detail_windows
 
-    def start(self, *, show_system_list: bool = False) -> None:
+    def start(self, *, show_system_list: bool = False, autostart: bool = False) -> None:
         self.service.sync_auto_start()
+        if autostart:
+            QTimer.singleShot(
+                AUTOSTART_TRAY_DELAY_MS,
+                lambda: self._complete_start(show_system_list=show_system_list),
+            )
+            return
+        self._complete_start(show_system_list=show_system_list)
+
+    def _complete_start(self, *, show_system_list: bool = False) -> None:
         self.tray.setup()
         app = QApplication.instance()
         if app is not None:

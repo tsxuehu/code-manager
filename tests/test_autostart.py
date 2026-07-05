@@ -14,6 +14,10 @@ class AutostartServiceTests(unittest.TestCase):
         autostart = _load_autostart_module()
 
         with patch.object(autostart.sys, "frozen", True, create=True), patch.object(
+            autostart.shutil,
+            "which",
+            return_value=None,
+        ), patch.object(
             autostart.sys,
             "executable",
             "/opt/code-manager/code-manager",
@@ -26,7 +30,7 @@ class AutostartServiceTests(unittest.TestCase):
     def test_launch_command_prefers_installed_binary(self) -> None:
         autostart = _load_autostart_module()
 
-        with patch.object(autostart.sys, "frozen", False, create=True), patch.object(
+        with patch.object(autostart.sys, "frozen", True, create=True), patch.object(
             autostart.shutil,
             "which",
             return_value="/usr/bin/code-manager",
@@ -67,7 +71,10 @@ class AutostartServiceTests(unittest.TestCase):
 
                 service.enable()
                 self.assertTrue(desktop_path.is_file())
-                self.assertIn("Exec=/usr/bin/code-manager", desktop_path.read_text(encoding="utf-8"))
+                desktop_text = desktop_path.read_text(encoding="utf-8")
+                self.assertIn("Exec=/usr/bin/code-manager --autostart", desktop_text)
+                self.assertIn("X-GNOME-Autostart-Delay=5", desktop_text)
+                self.assertIn("StartupNotify=false", desktop_text)
                 self.assertTrue(service.is_enabled())
 
                 service.disable()
@@ -106,7 +113,10 @@ class AutostartServiceTests(unittest.TestCase):
         def fake_enable(command: list[str]) -> None:
             nonlocal enabled
             enabled = True
-            self.assertEqual(command, [r"C:\Program Files\code-manager\code-manager.exe"])
+            self.assertEqual(
+                command,
+                [r"C:\Program Files\code-manager\code-manager.exe", autostart.AUTOSTART_ARG],
+            )
 
         def fake_disable() -> None:
             nonlocal enabled
