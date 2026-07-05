@@ -187,9 +187,15 @@ class SystemDetailWindow(QMainWindow):
     ) -> None:
         self.status_label.setText(f"{name} 执行中...")
         worker = BatchWorker(system.applications, operation, signal_parent=self)
+        worker.signals.item_started.connect(
+            lambda application, batch_name=name: self._handle_batch_item_started(batch_name, application)
+        )
         worker.signals.item_finished.connect(self._handle_batch_result)
         worker.signals.finished.connect(lambda w=worker: self._finish_batch(name, w))
         self.thread_pool.start(worker)
+
+    def _handle_batch_item_started(self, name: str, application: Application) -> None:
+        self.status_label.setText(f"{name}: {application.name}")
 
     def _finish_batch(self, name: str, worker: BatchWorker) -> None:
         self.status_label.setText(f"{name} 已完成")
@@ -205,7 +211,7 @@ class SystemDetailWindow(QMainWindow):
                 self.refresh_table()
             return
         if isinstance(result, GitOperationResult):
-            self.status_label.setText(f"{result.application.name}: {result.message}")
+            return
 
     def _handle_repository_config_changed(self) -> None:
         self.status_by_url.clear()

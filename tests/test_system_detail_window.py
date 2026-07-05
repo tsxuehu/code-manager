@@ -362,6 +362,57 @@ class SystemDetailWindowTests(unittest.TestCase):
 
             self.assertEqual(window.status_label.text(), "状态刷新 已完成")
 
+    def test_batch_operation_shows_current_application_in_status_label(self) -> None:
+        class SlowGitService(GitService):
+            def status(self, application: Application, code_root: Path) -> RepositoryStatus:
+                return RepositoryStatus(
+                    application=application,
+                    local_path=application.resolve_local_path(code_root),
+                    exists=False,
+                    branch="-",
+                    has_local_changes=False,
+                    has_unpushed_commits=False,
+                    has_remote_updates=False,
+                    message="状态已刷新",
+                )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            applications = tuple(
+                Application(
+                    name=f"app-{index}",
+                    repository_url=f"https://git.example.com/platform/app-{index}.git",
+                    group_english_name="platform",
+                    local_dir_name=f"app-{index}",
+                )
+                for index in range(2)
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=applications,
+                )
+            )
+            window = SystemDetailWindow(service, SlowGitService(), "aha")
+            seen_statuses: list[str] = []
+
+            original_handle_started = window._handle_batch_item_started
+
+            def capture_started(name: str, application: Application) -> None:
+                seen_statuses.append(f"{name}: {application.name}")
+                original_handle_started(name, application)
+
+            window._handle_batch_item_started = capture_started
+            window.refresh_statuses()
+
+            loop = QEventLoop()
+            QTimer.singleShot(500, loop.quit)
+            loop.exec()
+
+            self.assertEqual(seen_statuses, ["状态刷新: app-0", "状态刷新: app-1"])
+            self.assertEqual(window.status_label.text(), "状态刷新 已完成")
+
     def test_clone_and_update_respect_submodule_checkbox(self) -> None:
         class RecordingGitService(GitService):
             def __init__(self) -> None:

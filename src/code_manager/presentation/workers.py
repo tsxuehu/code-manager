@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
 
 class WorkerSignals(QObject):
+    item_started = Signal(object)
     item_finished = Signal(object)
     finished = Signal()
 
@@ -26,6 +27,7 @@ class BatchWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         for item in self.items:
+            self.signals.item_started.emit(item)
             result = self.operation(item)
             self.signals.item_finished.emit(result)
         self.signals.finished.emit()
