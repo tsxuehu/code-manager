@@ -31,6 +31,7 @@ class JsonConfigStore:
                 for item in data.get("systems", [])
             ],
             active_system_name=data.get("active_system_name"),
+            auto_start=bool(data.get("auto_start", False)),
         )
 
     def save(self, config: CodeManagerConfig) -> None:
@@ -52,6 +53,7 @@ class JsonConfigStore:
                 for system in config.systems
             ],
             "active_system_name": config.active_system_name,
+            "auto_start": config.auto_start,
         }
 
     def _load_legacy_config(self, data: dict[str, Any]) -> CodeManagerConfig:

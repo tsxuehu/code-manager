@@ -34,6 +34,7 @@ class ApplicationController:
         return self.windows.detail_windows
 
     def start(self, *, show_system_list: bool = False) -> None:
+        self.service.sync_auto_start()
         self.tray.setup()
         app = QApplication.instance()
         if app is not None:

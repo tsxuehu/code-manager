@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
+    QCheckBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -73,6 +74,10 @@ class MainWindow(QMainWindow):
             button.clicked.connect(handler)
             button_row.addWidget(button)
         button_row.addStretch(1)
+        self.auto_start_checkbox = QCheckBox("开机自动启动")
+        self.auto_start_checkbox.setChecked(self.service.config.auto_start)
+        self.auto_start_checkbox.toggled.connect(self._on_auto_start_toggled)
+        button_row.addWidget(self.auto_start_checkbox)
         layout.addLayout(button_row)
 
         self.system_table.setHorizontalHeaderLabels(["系统名称", "本地代码路径", "操作"])
@@ -371,3 +376,14 @@ class MainWindow(QMainWindow):
 
     def _cell_label(self, column: int | None) -> str:
         return "系统名称" if column == 0 else "本地代码路径"
+
+    def _on_auto_start_toggled(self, checked: bool) -> None:
+        try:
+            self.service.set_auto_start(checked)
+        except OSError as exc:
+            self.auto_start_checkbox.blockSignals(True)
+            self.auto_start_checkbox.setChecked(not checked)
+            self.auto_start_checkbox.blockSignals(False)
+            QMessageBox.warning(self, "设置失败", str(exc))
+            return
+        self.status_label.setText("已开启开机自动启动" if checked else "已关闭开机自动启动")

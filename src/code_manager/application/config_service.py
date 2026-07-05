@@ -5,6 +5,7 @@ from pathlib import Path
 
 from code_manager.domain.models import Application, Group, SystemProfile
 from code_manager.domain.repo_parser import parse_repository_url
+from code_manager.infrastructure.autostart import AutostartService
 from code_manager.infrastructure.config_store import JsonConfigStore
 from code_manager.infrastructure.system_yaml import dump_system_to_yaml, load_system_from_yaml
 
@@ -17,8 +18,13 @@ class ImportResult:
 
 
 class CodeManagerService:
-    def __init__(self, config_store: JsonConfigStore | None = None) -> None:
+    def __init__(
+        self,
+        config_store: JsonConfigStore | None = None,
+        autostart_service: AutostartService | None = None,
+    ) -> None:
         self.config_store = config_store or JsonConfigStore()
+        self.autostart_service = autostart_service or AutostartService()
         self.config = self.config_store.load()
 
     def active_system(self) -> SystemProfile:
@@ -55,6 +61,20 @@ class CodeManagerService:
 
     def save(self) -> None:
         self.config_store.save(self.config)
+
+    def set_auto_start(self, enabled: bool) -> None:
+        if enabled:
+            self.autostart_service.enable()
+        else:
+            self.autostart_service.disable()
+        self.config.auto_start = enabled
+        self.save()
+
+    def sync_auto_start(self) -> None:
+        if self.config.auto_start:
+            self.autostart_service.enable()
+        else:
+            self.autostart_service.disable()
 
     def upsert_group(self, group: Group) -> None:
         self.config.upsert_group(group)

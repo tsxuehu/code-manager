@@ -91,6 +91,7 @@ class SystemProfile:
 class CodeManagerConfig:
     systems: list[SystemProfile] = field(default_factory=list)
     active_system_name: str | None = None
+    auto_start: bool = False
 
     @property
     def code_root(self) -> Path:

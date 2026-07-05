@@ -36,6 +36,7 @@ class JsonConfigStoreTests(unittest.TestCase):
                     )
                 ],
                 active_system_name="aha",
+                auto_start=True,
             )
 
             store.save(expected)

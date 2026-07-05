@@ -386,6 +386,23 @@ applications:
             self.assertFalse(window.isVisible())
             controller.detail_windows["aha"].close()
 
+    def test_auto_start_checkbox_updates_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            window = _create_main_window(service)
+
+            with patch.object(service.autostart_service, "enable") as enable, patch.object(
+                service.autostart_service,
+                "disable",
+            ) as disable:
+                window.auto_start_checkbox.setChecked(True)
+                enable.assert_called_once()
+                self.assertTrue(service.config.auto_start)
+
+                window.auto_start_checkbox.setChecked(False)
+                disable.assert_called_once()
+                self.assertFalse(service.config.auto_start)
+
 
 if __name__ == "__main__":
     unittest.main()
