@@ -18,11 +18,22 @@ class BuildWinScriptTests(unittest.TestCase):
     def test_build_script_invokes_pyinstaller_for_windows_exe(self) -> None:
         build_win = _load_build_script()
 
+        icon_file = Path(__file__).resolve().parents[1] / "packaging" / "icons" / "code-manager.svg"
+        ico_file = icon_file.with_suffix(".ico")
+
         with patch.object(build_win.platform, "system", return_value="Windows"), patch.object(
             build_win.shutil,
             "which",
             return_value="uv",
         ), patch.object(build_win, "clean_build_artifacts") as clean_build_artifacts, patch.object(
+            build_win,
+            "icon_source_path",
+            return_value=icon_file,
+        ), patch.object(
+            build_win,
+            "ensure_windows_exe_icon",
+            return_value=ico_file,
+        ), patch.object(
             build_win.subprocess,
             "run",
         ) as run:
@@ -38,15 +49,29 @@ class BuildWinScriptTests(unittest.TestCase):
         self.assertIn("code-manager", command)
         self.assertIn("--paths", command)
         self.assertIn("src", command)
+        self.assertIn("--icon", command)
+        self.assertIn(str(ico_file.resolve()), command)
+        self.assertIn("--add-data", command)
+        self.assertIn(f"{icon_file.resolve()};.", command)
         self.assertTrue(any(value.endswith("src/code_manager/__main__.py") for value in command))
 
     def test_build_script_can_build_onedir(self) -> None:
         build_win = _load_build_script()
 
+        icon_file = Path(__file__).resolve().parents[1] / "packaging" / "icons" / "code-manager.svg"
+
         with patch.object(build_win.platform, "system", return_value="Windows"), patch.object(
             build_win.shutil,
             "which",
             return_value="uv",
+        ), patch.object(
+            build_win,
+            "icon_source_path",
+            return_value=icon_file,
+        ), patch.object(
+            build_win,
+            "ensure_windows_exe_icon",
+            return_value=icon_file.with_suffix(".ico"),
         ), patch.object(build_win.subprocess, "run") as run:
             build_win.main(["--onedir"])
 

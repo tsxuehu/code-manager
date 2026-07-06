@@ -13,7 +13,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from build_utils import clean_build_artifacts
+from build_utils import clean_build_artifacts, icon_source_path
 
 
 def read_project_version(project_root: Path) -> str:
@@ -118,13 +118,6 @@ def write_desktop_file(path: Path) -> None:
         ),
         encoding="utf-8",
     )
-
-
-def icon_source_path(project_root: Path) -> Path:
-    icon_path = project_root / "packaging" / "icons" / "code-manager.svg"
-    if not icon_path.is_file():
-        raise RuntimeError(f"未找到图标文件: {icon_path}")
-    return icon_path
 
 
 def install_icons(staging_root: Path, project_root: Path, install_root: Path) -> None:

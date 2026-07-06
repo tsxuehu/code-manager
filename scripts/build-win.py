@@ -11,7 +11,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from build_utils import clean_build_artifacts
+from build_utils import clean_build_artifacts, ensure_windows_exe_icon, icon_source_path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -55,6 +55,9 @@ def main(argv: list[str] | None = None) -> int:
 
     clean_build_artifacts(project_root)
 
+    icon_file = icon_source_path(project_root)
+    exe_icon_file = ensure_windows_exe_icon(project_root, build_dir=build_dir)
+
     command = [
         uv,
         "run",
@@ -67,6 +70,10 @@ def main(argv: list[str] | None = None) -> int:
         args.name,
         "--paths",
         "src",
+        "--icon",
+        str(exe_icon_file.resolve()),
+        "--add-data",
+        f"{icon_file.resolve()};.",
         "--distpath",
         str(dist_dir),
         "--workpath",
