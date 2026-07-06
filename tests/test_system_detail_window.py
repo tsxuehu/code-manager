@@ -226,16 +226,21 @@ class SystemDetailWindowTests(unittest.TestCase):
             self.assertIsNotNone(operation_widget)
             buttons = operation_widget.findChildren(QPushButton)
 
-            self.assertEqual([button.text() for button in buttons], ["刷新", "打本目录", "在终端中打开"])
+            self.assertEqual(
+                [button.text() for button in buttons],
+                ["刷新", "拉代码", "打开目录", "在终端中打开"],
+            )
             self.assertEqual(buttons[0].minimumWidth(), buttons[0].maximumWidth())
             self.assertEqual(buttons[1].minimumWidth(), buttons[1].maximumWidth())
             self.assertEqual(buttons[2].minimumWidth(), buttons[2].maximumWidth())
+            self.assertEqual(buttons[3].minimumWidth(), buttons[3].maximumWidth())
             self.assertLessEqual(buttons[0].maximumWidth(), 64)
-            self.assertLessEqual(buttons[1].maximumWidth(), 92)
-            self.assertLessEqual(buttons[2].maximumWidth(), 116)
+            self.assertLessEqual(buttons[1].maximumWidth(), 64)
+            self.assertLessEqual(buttons[2].maximumWidth(), 76)
+            self.assertLessEqual(buttons[3].maximumWidth(), 132)
 
-            buttons[1].click()
             buttons[2].click()
+            buttons[3].click()
 
             self.assertEqual(opened_paths, [application.resolve_local_path(Path("D:/workspace/aha"))])
             self.assertEqual(terminal_paths, [application.resolve_local_path(Path("D:/workspace/aha"))])
@@ -280,9 +285,10 @@ class SystemDetailWindowTests(unittest.TestCase):
             self.assertTrue(header.stretchLastSection())
             self.assertEqual(window.repository_table.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
             self.assertTrue(window.repository_table.hasMouseTracking())
+            self.assertLessEqual(window.repository_table.columnWidth(1), 170)
             self.assertLessEqual(window.repository_table.columnWidth(2), 440)
             self.assertLessEqual(window.repository_table.columnWidth(3), 130)
-            self.assertLessEqual(window.repository_table.columnWidth(4), 285)
+            self.assertLessEqual(window.repository_table.columnWidth(4), 370)
 
     def test_repository_table_refresh_button_refreshes_only_current_application(self) -> None:
         refreshed_applications: list[Application] = []
@@ -320,6 +326,43 @@ class SystemDetailWindowTests(unittest.TestCase):
             buttons[0].click()
 
             self.assertEqual(refreshed_applications, [applications[1]])
+
+    def test_repository_table_update_button_updates_only_current_application(self) -> None:
+        updated_applications: list[Application] = []
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            applications = (
+                Application(
+                    name="order-service",
+                    repository_url="https://git.example.com/platform/order-service.git",
+                    group_english_name="platform",
+                    local_dir_name="order-service",
+                ),
+                Application(
+                    name="billing-service",
+                    repository_url="https://git.example.com/platform/billing-service.git",
+                    group_english_name="platform",
+                    local_dir_name="billing-service",
+                ),
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=applications,
+                )
+            )
+            window = SystemDetailWindow(service, GitService(), "aha")
+            window._update_application = updated_applications.append
+
+            operation_widget = window.repository_table.cellWidget(0, 4)
+            self.assertIsNotNone(operation_widget)
+            buttons = operation_widget.findChildren(QPushButton)
+
+            buttons[1].click()
+
+            self.assertEqual(updated_applications, [applications[1]])
 
     def test_refresh_statuses_updates_status_label_when_batch_finishes(self) -> None:
         class FastGitService(GitService):

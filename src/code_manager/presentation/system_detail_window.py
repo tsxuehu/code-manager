@@ -41,10 +41,10 @@ COL_OPERATIONS = 4
 
 REPOSITORY_TABLE_COLUMN_WIDTHS = {
     COL_GROUP: 120,
-    COL_APPLICATION: 220,
+    COL_APPLICATION: 160,
     COL_LOCAL_STATUS: 420,
     COL_REMOTE_STATUS: 115,
-    COL_OPERATIONS: 275,
+    COL_OPERATIONS: 360,
 }
 
 
@@ -271,18 +271,24 @@ class SystemDetailWindow(QMainWindow):
         refresh_button.clicked.connect(
             lambda _checked=False: self._refresh_application_status(application)
         )
-        open_directory_button = QPushButton("打本目录")
-        open_directory_button.setFixedWidth(86)
+        update_button = QPushButton("拉代码")
+        update_button.setFixedWidth(56)
+        update_button.clicked.connect(
+            lambda _checked=False: self._update_application(application)
+        )
+        open_directory_button = QPushButton("打开目录")
+        open_directory_button.setFixedWidth(70)
         open_directory_button.clicked.connect(
             lambda _checked=False: self._handle_open_local_path(application, local_path)
         )
         terminal_button = QPushButton("在终端中打开")
-        terminal_button.setFixedWidth(112)
+        terminal_button.setFixedWidth(128)
         terminal_button.clicked.connect(
             lambda _checked=False: self._handle_open_terminal_path(application, local_path)
         )
 
         layout.addWidget(refresh_button)
+        layout.addWidget(update_button)
         layout.addWidget(open_directory_button)
         layout.addWidget(terminal_button)
         layout.addStretch(1)
@@ -304,6 +310,36 @@ class SystemDetailWindow(QMainWindow):
 
     def _finish_single_refresh(self, application_name: str, worker: BatchWorker) -> None:
         self.status_label.setText(f"刷新完成: {application_name}")
+        worker.signals.deleteLater()
+
+    def _update_application(self, application: Application) -> None:
+        system = self._system()
+        include_submodules = self.include_submodules_checkbox.isChecked()
+        self.status_label.setText(f"拉代码: {application.name}")
+        worker = BatchWorker(
+            [application],
+            lambda current_application: self.git_service.update(
+                current_application,
+                system.code_root,
+                include_submodules=include_submodules,
+            ),
+            signal_parent=self,
+        )
+        worker.signals.item_finished.connect(self._handle_single_update_result)
+        worker.signals.finished.connect(
+            lambda w=worker: self._finish_single_update(application.name, w)
+        )
+        self.thread_pool.start(worker)
+
+    def _handle_single_update_result(self, result: object) -> None:
+        if not isinstance(result, GitOperationResult):
+            return
+        prefix = "拉代码完成" if result.success else "拉代码失败"
+        self.status_label.setText(f"{prefix}: {result.application.name} - {result.message}")
+
+    def _finish_single_update(self, application_name: str, worker: BatchWorker) -> None:
+        if self.status_label.text().startswith("拉代码:"):
+            self.status_label.setText(f"拉代码完成: {application_name}")
         worker.signals.deleteLater()
 
     def _handle_open_local_path(self, application: Application, local_path: Path) -> None:
