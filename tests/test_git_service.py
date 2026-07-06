@@ -1,9 +1,12 @@
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from code_manager.domain.models import Application
-from code_manager.infrastructure.git_service import GitService
+from code_manager.infrastructure.git_service import GitService, subprocess_run_kwargs
 
 
 class GitServiceTests(unittest.TestCase):
@@ -217,6 +220,38 @@ class GitServiceTests(unittest.TestCase):
             self.assertFalse(status.has_local_changes)
             self.assertTrue(status.has_unpushed_commits)
             self.assertFalse(status.has_remote_updates)
+
+
+class GitServiceSubprocessTests(unittest.TestCase):
+    def test_subprocess_run_kwargs_hides_console_on_windows(self) -> None:
+        with patch.object(sys, "platform", "win32"):
+            self.assertEqual(
+                subprocess_run_kwargs(),
+                {"creationflags": subprocess.CREATE_NO_WINDOW},
+            )
+
+    def test_subprocess_run_kwargs_empty_on_non_windows(self) -> None:
+        with patch.object(sys, "platform", "linux"):
+            self.assertEqual(subprocess_run_kwargs(), {})
+
+    def test_run_command_passes_no_window_flag_on_windows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            local_path = Path(temp_dir)
+            (local_path / ".git").mkdir()
+            service = GitService()
+
+            with patch.object(sys, "platform", "win32"), patch.object(
+                subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess([], 0, stdout="master\n", stderr=""),
+            ) as run:
+                branch = service._run_command(["git", "branch", "--show-current"], local_path)
+
+            self.assertEqual(branch, "master\n")
+            self.assertEqual(
+                run.call_args.kwargs.get("creationflags"),
+                subprocess.CREATE_NO_WINDOW,
+            )
 
 
 if __name__ == "__main__":

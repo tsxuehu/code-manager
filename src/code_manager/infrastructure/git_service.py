@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -8,6 +9,12 @@ from typing import Callable
 from code_manager.domain.models import Application
 
 CommandRunner = Callable[[list[str], Path | None], str]
+
+
+def subprocess_run_kwargs() -> dict[str, object]:
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,7 @@ class GitService:
             text=True,
             encoding="utf-8",
             errors="replace",
+            **subprocess_run_kwargs(),
         )
         return completed.stdout
 
