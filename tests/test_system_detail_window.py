@@ -364,6 +364,101 @@ class SystemDetailWindowTests(unittest.TestCase):
 
             self.assertEqual(updated_applications, [applications[1]])
 
+    def test_update_then_refresh_status_refreshes_after_successful_pull(self) -> None:
+        status_calls: list[Application] = []
+
+        class RecordingGitService(GitService):
+            def update(
+                self,
+                application: Application,
+                code_root: Path,
+                include_submodules: bool = False,
+            ) -> GitOperationResult:
+                return GitOperationResult(application, True, "更新完成")
+
+            def status(self, application: Application, code_root: Path) -> RepositoryStatus:
+                status_calls.append(application)
+                return RepositoryStatus(
+                    application=application,
+                    local_path=application.resolve_local_path(code_root),
+                    exists=True,
+                    branch="master",
+                    has_local_changes=False,
+                    has_unpushed_commits=False,
+                    has_remote_updates=True,
+                    message="状态已刷新",
+                )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            application = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=(application,),
+                )
+            )
+            window = SystemDetailWindow(service, RecordingGitService(), "aha")
+            system = window._system()
+
+            result = window._update_then_refresh_status(
+                application,
+                system,
+                include_submodules=False,
+            )
+
+            self.assertEqual(status_calls, [application])
+            self.assertIsInstance(result, RepositoryStatus)
+            assert isinstance(result, RepositoryStatus)
+            self.assertTrue(result.has_remote_updates)
+
+    def test_update_then_refresh_status_skips_refresh_when_pull_fails(self) -> None:
+        class RecordingGitService(GitService):
+            def update(
+                self,
+                application: Application,
+                code_root: Path,
+                include_submodules: bool = False,
+            ) -> GitOperationResult:
+                return GitOperationResult(application, False, "更新失败")
+
+            def status(self, application: Application, code_root: Path) -> RepositoryStatus:
+                raise AssertionError("拉代码失败时不应刷新状态")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))
+            application = Application(
+                name="order-service",
+                repository_url="https://git.example.com/platform/order-service.git",
+                group_english_name="platform",
+                local_dir_name="order-service",
+            )
+            service.upsert_system(
+                SystemProfile(
+                    name="aha",
+                    code_root=Path("D:/workspace/aha"),
+                    applications=(application,),
+                )
+            )
+            window = SystemDetailWindow(service, RecordingGitService(), "aha")
+            system = window._system()
+
+            result = window._update_then_refresh_status(
+                application,
+                system,
+                include_submodules=False,
+            )
+
+            self.assertIsInstance(result, GitOperationResult)
+            assert isinstance(result, GitOperationResult)
+            self.assertFalse(result.success)
+
     def test_refresh_statuses_updates_status_label_when_batch_finishes(self) -> None:
         class FastGitService(GitService):
             def status(self, application: Application, code_root: Path) -> RepositoryStatus:
@@ -479,6 +574,18 @@ class SystemDetailWindowTests(unittest.TestCase):
             ) -> GitOperationResult:
                 self.update_flags.append(include_submodules)
                 return GitOperationResult(application, True, "更新完成")
+
+            def status(self, application: Application, code_root: Path) -> RepositoryStatus:
+                return RepositoryStatus(
+                    application=application,
+                    local_path=application.resolve_local_path(code_root),
+                    exists=True,
+                    branch="master",
+                    has_local_changes=False,
+                    has_unpushed_commits=False,
+                    has_remote_updates=False,
+                    message="状态已刷新",
+                )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             service = CodeManagerService(JsonConfigStore(Path(temp_dir) / "config.json"))

@@ -172,12 +172,28 @@ class SystemDetailWindow(QMainWindow):
         self._run_batch(
             "拉代码",
             system,
-            lambda application: self.git_service.update(
+            lambda application: self._update_then_refresh_status(
                 application,
-                system.code_root,
+                system,
                 include_submodules=include_submodules,
             ),
         )
+
+    def _update_then_refresh_status(
+        self,
+        application: Application,
+        system: SystemProfile,
+        *,
+        include_submodules: bool,
+    ) -> GitOperationResult | RepositoryStatus:
+        result = self.git_service.update(
+            application,
+            system.code_root,
+            include_submodules=include_submodules,
+        )
+        if not result.success:
+            return result
+        return self.git_service.status(application, system.code_root)
 
     def _run_batch(
         self,
@@ -318,9 +334,9 @@ class SystemDetailWindow(QMainWindow):
         self.status_label.setText(f"拉代码: {application.name}")
         worker = BatchWorker(
             [application],
-            lambda current_application: self.git_service.update(
+            lambda current_application: self._update_then_refresh_status(
                 current_application,
-                system.code_root,
+                system,
                 include_submodules=include_submodules,
             ),
             signal_parent=self,
@@ -332,10 +348,13 @@ class SystemDetailWindow(QMainWindow):
         self.thread_pool.start(worker)
 
     def _handle_single_update_result(self, result: object) -> None:
-        if not isinstance(result, GitOperationResult):
+        if isinstance(result, GitOperationResult):
+            prefix = "拉代码完成" if result.success else "拉代码失败"
+            self.status_label.setText(f"{prefix}: {result.application.name} - {result.message}")
             return
-        prefix = "拉代码完成" if result.success else "拉代码失败"
-        self.status_label.setText(f"{prefix}: {result.application.name} - {result.message}")
+        if isinstance(result, RepositoryStatus):
+            self._handle_batch_result(result)
+            self.status_label.setText(f"拉代码完成: {result.application.name}")
 
     def _finish_single_update(self, application_name: str, worker: BatchWorker) -> None:
         if self.status_label.text().startswith("拉代码:"):
