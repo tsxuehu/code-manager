@@ -27,15 +27,39 @@ class AutostartServiceTests(unittest.TestCase):
                 [str(Path("/opt/code-manager/code-manager").resolve())],
             )
 
-    def test_launch_command_prefers_installed_binary(self) -> None:
+    def test_launch_command_prefers_frozen_executable_over_installed_binary(self) -> None:
         autostart = _load_autostart_module()
 
         with patch.object(autostart.sys, "frozen", True, create=True), patch.object(
             autostart.shutil,
             "which",
             return_value="/usr/bin/code-manager",
+        ), patch.object(
+            autostart.sys,
+            "executable",
+            r"C:\Program Files\code-manager\code-manager.exe",
         ):
-            self.assertEqual(autostart.launch_command(), ["/usr/bin/code-manager"])
+            self.assertEqual(
+                autostart.launch_command(),
+                [str(Path(r"C:\Program Files\code-manager\code-manager.exe").resolve())],
+            )
+
+    def test_launch_command_resolves_installed_binary_to_absolute_path(self) -> None:
+        autostart = _load_autostart_module()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            exe_path = Path(temp_dir) / "code-manager.exe"
+            exe_path.write_text("", encoding="utf-8")
+
+            with patch.object(autostart.sys, "frozen", False, create=True), patch.object(
+                autostart.shutil,
+                "which",
+                return_value=str(exe_path),
+            ):
+                self.assertEqual(
+                    autostart.launch_command(),
+                    [str(exe_path.resolve())],
+                )
 
     def test_launch_command_falls_back_to_python_module(self) -> None:
         autostart = _load_autostart_module()
@@ -47,7 +71,7 @@ class AutostartServiceTests(unittest.TestCase):
         ), patch.object(autostart.sys, "executable", "/usr/bin/python3"):
             self.assertEqual(
                 autostart.launch_command(),
-                ["/usr/bin/python3", "-m", "code_manager"],
+                [str(Path("/usr/bin/python3").resolve()), "-m", "code_manager"],
             )
 
     def test_linux_enable_and_disable(self) -> None:

@@ -14,14 +14,14 @@ LINUX_AUTOSTART_DELAY_SECONDS = 5
 
 
 def launch_command() -> list[str]:
-    installed = shutil.which("code-manager")
-    if installed:
-        return [installed]
-
     if getattr(sys, "frozen", False):
         return [str(Path(sys.executable).resolve())]
 
-    return [sys.executable, "-m", "code_manager"]
+    installed = shutil.which("code-manager")
+    if installed:
+        return [str(Path(installed).resolve())]
+
+    return [str(Path(sys.executable).resolve()), "-m", "code_manager"]
 
 
 def autostart_exec_command() -> list[str]:
